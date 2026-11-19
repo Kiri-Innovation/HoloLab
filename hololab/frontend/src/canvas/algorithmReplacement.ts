@@ -1,5 +1,6 @@
+import { capturePersistedInterface } from './interfaceSnapshot';
 import type { Node } from '@xyflow/react';
-import type { CatalogPack, GraphNode, ParamSpec, WorkflowGraph } from '../wire';
+import type { CatalogPack, GraphNode, ParamSpec, WorkflowGraph, PortTypeVariant, InputPortSpec } from '../wire';
 import { canonicalPackageName, samePackage } from '../packageIdentity';
 import { declarationType } from '../types/legacyPortType';
 import type { PortDeclaration } from '../types/portTypeIR';
@@ -17,6 +18,7 @@ export function samePorts(a: CatalogPack, b: CatalogPack): boolean {
     Object.fromEntries(Object.entries(group).map(([name, spec]) => {
       return [name, {
         tags: [...new Set(spec.tags)].sort(),
+        required: groupIndex === 0 ? (spec as InputPortSpec).required ?? true : null,
         arrayed: !!spec.arrayed, scalar: !!spec.scalar, dim_labels: spec.dim_labels ?? [],
         // Axis-name matching is an input constraint. The resolved IR carries
         // its default on outputs too, where it is not a manifest contract.
@@ -24,7 +26,7 @@ export function samePorts(a: CatalogPack, b: CatalogPack): boolean {
         tags_from: spec.tags_from ?? null, dim_labels_from: spec.dim_labels_from ?? null,
         dim_labels_from_input: spec.dim_labels_from_input ?? null,
         dim_labels_drop_outer: spec.dim_labels_drop_outer ?? null,
-        content_dims_from: spec.content_dims_from ?? null, any_of: spec.any_of ?? [],
+        content_dims_from: spec.content_dims_from ?? null, any_of: (spec.any_of ?? []).map((v: PortTypeVariant) => ({tags:[...new Set(v.tags)].sort(),arrayed:!!v.arrayed,dim_labels:v.dim_labels ?? []})).sort((a: unknown,b: unknown)=>stable(a).localeCompare(stable(b))),
         ir: declarationType(spec),
       }];
     })));
@@ -38,7 +40,7 @@ function graphPortTypes(value: unknown): GraphPortTypes | null {
   const candidate = value as Partial<GraphPortTypes>;
   if (candidate.schemaVersion !== 1 || !candidate.inputs || !candidate.outputs) return null;
   const complete = (ports: Record<string, { declaration: PortDeclaration }>) => Object.values(ports).every(port =>
-    Array.isArray(port?.declaration?.tags) && typeof port.declaration.arrayed === 'boolean' && typeof port.declaration.scalar === 'boolean');
+    Array.isArray(port?.declaration?.tags) && (port.declaration.tags.length > 0 || !!port.declaration.any_of?.length) && typeof port.declaration.arrayed === 'boolean' && typeof port.declaration.scalar === 'boolean');
   return complete(candidate.inputs) && complete(candidate.outputs) ? candidate as GraphPortTypes : null;
 }
 
@@ -183,7 +185,7 @@ function replacementParameters(data: NonNullable<ReturnType<typeof algorithmNode
   const retained = new Set<string>();
   const changes: ReplacementParameterChange[] = [];
   for (const [name, spec] of Object.entries(target.params)) {
-    const old = data.pack.params[name];
+    const old = (data.replacementBaseline ?? data.pack).params[name];
     const value = Object.prototype.hasOwnProperty.call(data.params ?? {}, name) ? data.params![name] : old?.default;
     const zeroBased = isZeroBasedFrameSkipUpgrade(data.pack, target, name) && typeof value === 'number';
     const migrated = zeroBased ? Math.max(0, value - 1) : value;
@@ -213,7 +215,7 @@ export function replaceAlgorithm(node: Node<Record<string, unknown>>, target: Ca
   const baseline = data?.replacementBaseline ?? data?.pack;
   if (!data || !baseline || (!connectionInferred && !samePorts(baseline, target)) || samePackage(data.pack.name, data.pack.version, target.name, target.version)) return node;
   const {params, bindings, retained} = replacementParameters(data, target);
-  return {...node, data: {...data, pack: target, replacementBaseline: target, replacementBasis: undefined, replacementMode: 'strict', params, param_bindings: bindings,
+  return {...node, data: {...data, pack: target, replacementBaseline: target, interface_snapshot: capturePersistedInterface(target), replacementBasis: undefined, replacementMode: 'strict', params, param_bindings: bindings,
     local_params: data.local_params?.filter(name => retained.has(name)),
   }};
 }

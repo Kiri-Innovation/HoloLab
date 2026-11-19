@@ -123,6 +123,7 @@ export interface AlgorithmNodeData extends Record<string, unknown> {
   pack: CatalogPack;
   /** Read-only replacement contract reconstructed from graph port_types. */
   replacementBaseline?: CatalogPack;
+  interface_snapshot?: import("./interfaceSnapshot").InterfaceSnapshot;
   /** Human-readable provenance when a historical contract is inferred. */
   replacementBasis?: string;
   /** Strict contracts compare every port; connection contracts prove only ports used by this graph. */

@@ -11,6 +11,7 @@ const nodeFields = [
   "algorithm_name",
   "algorithm_version",
   "code_identity",
+  "interface_snapshot",
   "position",
   "params",
   "param_bindings",
@@ -60,7 +61,7 @@ export function diffDocument(
       continue;
     }
     for (const field of nodeFields) {
-      if (field === "code_identity" && !(field in node)) continue;
+      if (["code_identity", "interface_snapshot"].includes(field) && !(field in node)) continue;
       const a = (previous as any)[field] ?? defaults[field] ?? null,
         b = (node as any)[field] ?? defaults[field] ?? null;
       if (equal(a, b)) continue;

@@ -579,6 +579,12 @@ class LatestRunOut(BaseModel):
 
 
 class GraphNodeOut(BaseModel):
+    interface_snapshot: dict[str, Any] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    code_identity: dict[str, Any] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     local_params: list[str] = Field(default_factory=list)
     param_bindings: dict[str, str] = Field(default_factory=dict)
     constant: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)

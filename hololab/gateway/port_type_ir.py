@@ -7,7 +7,7 @@ is never accepted by normalization, transformations or compatibility checks.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Annotated, Generic, Literal, TypeVar
+from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -103,6 +103,8 @@ class RuntimeShape(Model):
 
 
 class Declaration(Model):
+    # Preserve the closed input union in the declaration, not only its views.
+    any_of: list[dict[str, Any]] = Field(default_factory=list)
     tags: list[str]
     require_axis_label_match: bool = True
     arrayed: bool = False

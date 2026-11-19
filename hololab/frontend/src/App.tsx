@@ -1,3 +1,5 @@
+import { listWorkflowRuns } from "./api";
+import { capturePersistedInterface, readInterface, recoverHistoricalInterface } from "./canvas/interfaceSnapshot";
 import { WorkflowDevices, useWorkflowDevices, logicalDevices } from "./canvas/WorkflowDevices";
 import { preparationDisplayReports } from "./canvas/parameterReadiness";
 import { useRecipeChecks } from "./packs/useRecipeChecks";
@@ -130,7 +132,7 @@ import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
 import { requestStopNode, WARM_NODE_PREPARATION_EVENT } from "./canvas/NodeRunControl";
 import { AlgorithmReplacementDialog } from "./canvas/AlgorithmReplacementDialog";
-import { replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replaceAlgorithm } from "./canvas/algorithmReplacement";
+import { samePorts, replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replaceAlgorithm } from "./canvas/algorithmReplacement";
 import { duplicateNode } from "./canvas/nodeDuplicate";
 import "./canvas/nodeContextMenu.css";
 import { PackPalette } from "./canvas/PackPalette";
@@ -1220,12 +1222,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   useEffect(() => {
     const graph = lastHydratedWireRef.current;
     const graphNodes = new Map(graph?.nodes.map(node => [node.id, node]) ?? []);
-    const replacementWitnessByAlgorithm = new Map<string, { id: string; algorithm_version: string; port_types?: unknown; arrayed_toggle?: boolean }>();
-    for (const candidate of graph?.nodes ?? []) {
-      if (!isViewGraphNode(candidate) && candidate.port_types && !replacementWitnessByAlgorithm.has(candidate.algorithm_name)) {
-        replacementWitnessByAlgorithm.set(candidate.algorithm_name, candidate);
-      }
-    }
     setNodes((current) => {
       const remeasure: string[] = [];
       const next = current.map((n) => {
@@ -1242,20 +1238,15 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // connection inference it remains safe for fan-out: ``samePorts``
         // compares the whole declaration including ``arrayable``.
         const catalogBaseline = graphNode && fresh?.manifest_hash ? fresh : null;
-        const witness = graphNode ? replacementWitnessByAlgorithm.get(graphNode.algorithm_name) : null;
-        const witnessPack = witness ? catalogByKey.get(`${graphNode!.algorithm_name}@${witness.algorithm_version}`) : null;
-        const witnessBaseline = graphNode && !ownBaseline && !catalogBaseline && !data.replacementBaseline && witness && witness.id !== n.id
-          ? replacementBaselineFromGraph(data.pack, witness.port_types, graphNode.arrayed_toggle, witnessPack?.arrayable)
-          : null;
-        const connectionInferred = graph && graphNode && !ownBaseline && !catalogBaseline && !witnessBaseline && !data.replacementBaseline
+        const connectionInferred = graph && graphNode && !ownBaseline && !catalogBaseline && !data.replacementBaseline
           && replacementCandidatesFromConnections(graphNode.id, graph, catalog).length > 0;
-        const replacementBaseline = ownBaseline ?? catalogBaseline ?? witnessBaseline ?? data.replacementBaseline
+        const replacementBaseline = catalogBaseline ?? ownBaseline ?? data.replacementBaseline
           // The current pack is only an identity/parameter carrier here. The
           // candidate filter below verifies the graph's observed interfaces.
           ?? (connectionInferred ? data.pack : undefined);
-        const replacementMode = ownBaseline || catalogBaseline || witnessBaseline || data.replacementMode === 'strict' ? 'strict'
+        const replacementMode = ownBaseline || catalogBaseline || data.replacementMode === 'strict' ? 'strict'
           : connectionInferred ? 'connections' : data.replacementMode;
-        const replacementBasis = ownBaseline ? undefined : catalogBaseline ? `依据本机 ${fresh!.name}@${fresh!.version} 的完整 I/O 声明` : witnessBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : data.replacementBasis;
+        const replacementBasis = ownBaseline ? undefined : catalogBaseline ? `依据本机 ${fresh!.name}@${fresh!.version} 的完整 I/O 声明` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : data.replacementBasis;
         const refreshesPack = Boolean(fresh && (fresh.manifest_hash !== data.pack.manifest_hash || fresh.type_generation !== data.pack.type_generation));
         if (!refreshesPack && replacementBaseline === data.replacementBaseline && replacementBasis === data.replacementBasis) {
           return n;
@@ -1998,6 +1989,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         position,
         data: {
           pack,
+          interface_snapshot: capturePersistedInterface(pack),
           assembly: pack.name === ASSEMBLE ? newAssembly() : undefined,
           device: "default",
           assigned_node_id: null,
@@ -2020,7 +2012,45 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
 
   const [replacementNodeId, setReplacementNodeId] = useState<string | null>(null);
   const replacementNode = nodes.find(node => node.id === replacementNodeId);
-  const replacementData = replacementNode ? algorithmDataForNode(replacementNode) : null;
+  const rawReplacementData = replacementNode ? algorithmDataForNode(replacementNode) : null;
+  const replacementIdentityToken = JSON.stringify(lastHydratedWireRef.current?.nodes.find(n=>n.id === replacementNodeId));
+  const [replacementEvidence, setReplacementEvidence] = useState<{nodeId:string; pending?:boolean; pack?:CatalogPack; reason?:string} | null>(null);
+  useEffect(() => {
+    if (!replacementNodeId || !workflowId) { setReplacementEvidence(null); return; }
+    const graph = lastHydratedWireRef.current;
+    const node = graph?.nodes.find(n => n.id === replacementNodeId);
+    if (!node) { setReplacementEvidence(null); return; }
+    const exact = catalogByKey.get(`${node.algorithm_name}@${node.algorithm_version}`);
+    // Exact installed declarations remain the normal path. A pinned identity
+    // must also agree; a reused version number cannot silently replace it.
+    if (exact?.manifest_hash && (!node.code_identity || node.code_identity.sha256 === exact.code_sha256)) {
+      const saved = readInterface(node,node.interface_snapshot);
+      const reason = saved.reason ?? (saved.pack && (!samePorts(saved.pack,exact) || saved.pack.code_sha256 !== exact.code_sha256 || (saved.source?.kind === 'catalog' && saved.pack.manifest_hash !== exact.manifest_hash))
+        ? '保存声明与本机精确版本的接口或代码身份冲突' : undefined);
+      setReplacementEvidence(reason ? {nodeId:node.id,reason} : null); return;
+    }
+    let cancelled = false;
+    setReplacementEvidence({nodeId:node.id,pending:true});
+    void (async () => {
+      const saved = readInterface(node,node.interface_snapshot);
+      if (saved.reason) return {reason:saved.reason};
+      const history = await recoverHistoricalInterface(workflowId,node,{runs:listWorkflowRuns,snapshot:getSnapshot,job:getJob});
+      if (history.pack) {
+        if (saved.pack && (saved.pack.manifest_hash !== history.pack.manifest_hash || saved.pack.code_sha256 !== history.pack.code_sha256 || !samePorts(saved.pack,history.pack))) return {reason:'保存声明与已运行历史接口冲突'};
+        return history;
+      }
+      // A portable catalog snapshot can outlive jobs, but never overrides
+      // contradictory evidence or an identity failure.
+      if (saved.pack && saved.source?.kind === 'catalog' && history.reason === '此节点没有可验证的已运行历史接口声明') return {pack:saved.pack};
+      return history;
+    })().then(result => { if (!cancelled) setReplacementEvidence({nodeId:node.id,...result}); })
+      .catch(error => { if (!cancelled) setReplacementEvidence({nodeId:node.id,reason:`历史声明读取失败：${String(error)}`}); });
+    return () => { cancelled = true; };
+  }, [replacementNodeId, workflowId, catalogByKey, replacementIdentityToken]);
+  const activeEvidence = replacementEvidence?.nodeId === replacementNodeId ? replacementEvidence : null;
+  const replacementData = rawReplacementData && activeEvidence
+    ? {...rawReplacementData,replacementBaseline:activeEvidence.pack,replacementMode:'strict' as const}
+    : rawReplacementData;
 
   const duplicateNodeAtOffset = useCallback((source: Node<Record<string, unknown>>) => {
     setFitInitialGraph(false);
@@ -2431,6 +2461,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           ...assemblyFields(d.assembly), ...constantFields(d.pack.name),
           algorithm_name: d.pack.name,
           algorithm_version: d.pack.version,
+          ...(d.interface_snapshot ? {interface_snapshot:d.interface_snapshot} : {}),
           position: { x: n.position.x, y: n.position.y },
           local_params: d.local_params ?? [],
           param_bindings: d.param_bindings ?? {},
@@ -2500,12 +2531,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         }
       }
       const missingPacks: string[] = [];
-      const replacementWitnessByAlgorithm = new Map<string, { id: string; algorithm_version: string; port_types?: unknown; arrayed_toggle?: boolean }>();
-      for (const candidate of graph.nodes) {
-        if (!isViewGraphNode(candidate) && candidate.port_types && !replacementWitnessByAlgorithm.has(candidate.algorithm_name)) {
-          replacementWitnessByAlgorithm.set(candidate.algorithm_name, candidate);
-        }
-      }
       const hydratedNodes = graph.nodes
         .map((gn) => {
           if (isViewGraphNode(gn)) {
@@ -2531,12 +2556,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           // This also covers legacy graph nodes that did not persist
           // ``port_types`` and are currently in fan-out mode.
           const catalogReplacementBaseline = found?.manifest_hash ? found : null;
-          const witness = replacementWitnessByAlgorithm.get(gn.algorithm_name);
-          const witnessPack = witness ? latestCatalogByKey.current.get(`${gn.algorithm_name}@${witness.algorithm_version}`) : null;
-          const witnessReplacementBaseline = !ownReplacementBaseline && !catalogReplacementBaseline && witness && witness.id !== gn.id
-            ? replacementBaselineFromGraph(pack, witness.port_types, gn.arrayed_toggle, witnessPack?.arrayable)
-            : null;
-          const connectionInferred = !ownReplacementBaseline && !catalogReplacementBaseline && !witnessReplacementBaseline
+          const connectionInferred = !ownReplacementBaseline && !catalogReplacementBaseline
             && replacementCandidatesFromConnections(gn.id, graph, catalog).length > 0;
           const node: Node<AlgorithmNodeData> = {
             id: gn.id,
@@ -2544,9 +2564,10 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             position: gn.position,
             data: {
               pack,
-              replacementBaseline: ownReplacementBaseline ?? catalogReplacementBaseline ?? witnessReplacementBaseline ?? (connectionInferred ? pack : undefined),
-              replacementBasis: ownReplacementBaseline ? undefined : catalogReplacementBaseline ? `依据本机 ${found!.name}@${found!.version} 的完整 I/O 声明` : witnessReplacementBaseline ? `依据图中 ${witness!.id} 节点已保存的 I/O 声明推断` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : undefined,
-              replacementMode: ownReplacementBaseline || catalogReplacementBaseline || witnessReplacementBaseline ? 'strict' : connectionInferred ? 'connections' : undefined,
+              interface_snapshot: gn.interface_snapshot,
+              replacementBaseline: catalogReplacementBaseline ?? ownReplacementBaseline ?? (connectionInferred ? pack : undefined),
+              replacementBasis: ownReplacementBaseline ? undefined : catalogReplacementBaseline ? `依据本机 ${found!.name}@${found!.version} 的完整 I/O 声明` : connectionInferred ? '基于图上已使用的连线/内联输入推断（弱保证：未使用端口未验证）' : undefined,
+              replacementMode: ownReplacementBaseline || catalogReplacementBaseline ? 'strict' : connectionInferred ? 'connections' : undefined,
               assembly: gn.assembly,
               device: gn.device ?? "default",
               assigned_node_id: gn.assigned_node_id,
@@ -3222,16 +3243,18 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       )}
       {replacementNode && replacementData && !viewingSnapshot && <AlgorithmReplacementDialog
         current={replacementData.pack}
+        basis={activeEvidence?.pack ? "依据此节点已核对的完整接口声明；未修改画布。" : replacementData.replacementBasis}
+        notice={replacementData.pack.name === 'k4d/ftgspp-init' && replacementData.pack.version === '0.1.7' ? '0.1.8 的空 eval_cameras 表示不留评估相机；接口兼容不代表参数语义完全相同。' : undefined}
         candidates={replacementData.replacementBaseline && !replacementData.assembly && !replacementData.pack.name.startsWith("@builtin/") ? replacementData.replacementMode === 'connections' && lastHydratedWireRef.current ? replacementCandidatesFromConnections(replacementNode.id, lastHydratedWireRef.current, catalog) : replacementCandidates(replacementData.replacementBaseline, catalog) : []}
         unavailableReason={!replacementData.replacementBaseline
-          ? "图中未保存足以验证完整输入输出声明，不能安全替换。"
+          ? activeEvidence?.pending ? "正在核对本节点已运行历史的完整接口声明…" : activeEvidence?.reason ?? "图中未保存足以验证完整输入输出声明，不能安全替换。"
           : replacementData.assembly
             ? "组合节点不能替换为算法。"
             : replacementData.pack.name.startsWith("@builtin/")
               ? "内置节点不能替换为算法。"
               : undefined}
         onClose={() => setReplacementNodeId(null)} onSelect={pack => {
-          setNodes(current => current.map(node => node.id === replacementNodeId ? replaceAlgorithm(node, pack, replacementData.replacementMode === 'connections') : node));
+          setNodes(current => current.map(node => node.id === replacementNodeId ? replaceAlgorithm(activeEvidence?.pack ? {...node,data:{...node.data,replacementBaseline:activeEvidence.pack}} : node, pack, replacementData.replacementMode === 'connections') : node));
           setReplacementNodeId(null);
         }} />}
       {snapshotError && (

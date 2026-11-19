@@ -12,6 +12,7 @@ See ``docs/workflow-schema.md`` for the schema and semantics. This module owns:
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import time
 import uuid
@@ -124,6 +125,35 @@ class GraphNode(ExtensionModel):
     algorithm_name: str | None = None
     algorithm_version: str | None = None
     code_identity: dict[str, Any] | None = None
+    # Portable declaration evidence only. Runtime port_types remain read-only.
+    # Dict retains future extension fields across older readers/machines.
+    interface_snapshot: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def _interface_snapshot_identity(self):
+        evidence = self.interface_snapshot
+        if evidence is None:
+            return self
+        if evidence.get("schemaVersion") != 1:
+            raise ValueError("unsupported interface snapshot schema")
+        raw = evidence.get("declaration_json")
+        if not isinstance(raw, str) or hashlib.sha256(raw.encode()).hexdigest() != evidence.get(
+            "sha256"
+        ):
+            raise ValueError("interface snapshot checksum mismatch")
+        contract = json.loads(raw)
+        if not isinstance(contract, dict) or package_key(
+            contract.get("name"), contract.get("version")
+        ) != package_key(self.algorithm_name, self.algorithm_version):
+            raise ValueError("interface snapshot package identity mismatch")
+        if (
+            not isinstance(contract.get("arrayable"), bool)
+            or not isinstance(contract.get("inputs"), dict)
+            or not isinstance(contract.get("outputs"), dict)
+        ):
+            raise ValueError("incomplete interface snapshot")
+        return self
+
     position: GraphPosition = Field(default_factory=GraphPosition)
     params: dict[str, Any] = Field(default_factory=dict)
     param_bindings: dict[str, str] = Field(default_factory=dict)
@@ -2034,6 +2064,11 @@ def resolved_port_types(
         group = {}
         for name, port in ports.items():
             raw = {k: v for k, v in asdict(port).items() if k in Declaration.model_fields}
+            if direction == "inputs" and port.any_of:
+                raw["any_of"] = [
+                    {"tags": list(tags), "arrayed": arrayed, "dim_labels": list(labels)}
+                    for tags, arrayed, labels in port.any_of
+                ]
             declaration = Declaration.model_validate(raw)
             fields = (
                 outputs[name]

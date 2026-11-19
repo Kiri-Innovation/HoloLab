@@ -620,6 +620,8 @@ export interface VariableDeclaration { type: "path" | "int" | "float"; descripti
 export type VariableDeclarations = Record<string, VariableDeclaration>;
 
 export interface GraphNode {
+  code_identity?: Record<string, unknown> | null;
+  interface_snapshot?: import("./canvas/interfaceSnapshot").InterfaceSnapshot;
   local_params?: string[];
   param_bindings?: Record<string, string>;
   id: string;

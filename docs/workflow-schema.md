@@ -555,3 +555,44 @@ operational rollback, not an automatic fallback. To return to file mode,
 reconcile any DB-only edits into the files first (or export them as new recipe
 imports), then remove the switch and restart. Files take precedence again.
 No service is restarted by migration or tests.
+
+### Portable replacement interfaces
+
+New canvas nodes and explicitly replaced nodes carry `interface_snapshot`.
+This is a versioned declaration envelope (`schemaVersion: 1`, canonical
+`declaration_json`, SHA-256), separate from the transient `port_types` runtime
+projection. It includes the exact algorithm name/version, available manifest
+and content identities, full input/output declarations (including closed
+`any_of`, axes, broadcast/scalar/arrayable flags and derivation rules), parameter
+specifications and evidence source. It contains no handle/runtime inventory.
+Unknown document/contract fields continue to round-trip. A checksum detects
+corruption; it is not a publisher signature or permission to execute code.
+Imported workflow files remain user-supplied documents.
+
+For historical nodes without a local exact version, opening replacement reads
+that workflow's run snapshots and their attributed successful parent jobs.
+`jobs.snapshot_id` is not attribution: the snapshot's returned jobs list is the
+bridge authority. Workflow, graph-node slot, algorithm name/version, recorded
+snapshot identity (when present), job identity and normalized manifest must
+agree. Release version is deliberately absent from normalized manifests; it
+is bound by the attributed job and `code_identity.source`. Conflicting evidence
+fails closed. Missing snapshot evidence may use the unique corresponding job
+manifest; another graph node with the same algorithm is never a witness.
+Recovery is display-only and does not save or replace the historical node.
+
+Union branches are compared as declarations, independent of branch order;
+empty tags are unknown, never a wildcard. Explicit `any` retains its existing
+meaning. Port compatibility does not imply parameter/algorithm equivalence.
+For example FTGSPP init 0.1.8 changes empty `eval_cameras` from last-camera
+holdout to no holdout. Existing replacement parameter migration still applies.
+
+The editor uses revision-guarded field patches for envelopes, retaining unrelated
+concurrent edits and unknown document extensions. Updated gateways validate
+envelope integrity/package binding and expose it in graph HTTP responses.
+The frontend detects this capability from the gateway's OpenAPI schema. Older
+gateways still support read-only historical recovery, but new envelope writes
+are disabled until their backend is updated: their HTTP response schema would
+otherwise strip the new field on refresh. This gate avoids a partial save or a
+claim of durability on an older backend. No restart is needed for the historical
+replacement candidate fix; the complete persistence backend needs the ordinary
+next service restart to take effect.

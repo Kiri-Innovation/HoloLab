@@ -4,8 +4,8 @@ import type { CatalogPack } from '../wire';
 import { samePackage } from '../packageIdentity';
 import './algorithmReplacement.css';
 
-export function AlgorithmReplacementDialog({current, candidates, unavailableReason, onSelect, onClose}: {
-  current: CatalogPack; candidates: CatalogPack[]; unavailableReason?: string; onSelect: (pack: CatalogPack) => void; onClose: () => void;
+export function AlgorithmReplacementDialog({current, candidates, unavailableReason, basis, notice, onSelect, onClose}: {
+  current: CatalogPack; candidates: CatalogPack[]; unavailableReason?: string; basis?: string; notice?: string; onSelect: (pack: CatalogPack) => void; onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
@@ -14,6 +14,8 @@ export function AlgorithmReplacementDialog({current, candidates, unavailableReas
   return createPortal(<dialog ref={dialog} className="hl-algorithm-replacement" aria-labelledby="replacement-title"
     onCancel={event => { event.preventDefault(); onClose(); }} onClick={event => {if (event.target === dialog.current) onClose();}}>
     <header><h2 id="replacement-title">替换为算法</h2><button type="button" aria-label="关闭" onClick={onClose}>×</button></header>
+    {basis && <p>{basis}</p>}
+    {notice && <p>{notice}</p>}
     <input autoFocus aria-label="搜索算法" placeholder="搜索算法名或版本" value={query} onChange={event => setQuery(event.target.value)} />
     <div className="hl-algorithm-replacement-list">
       {shown.map(pack => {const active = samePackage(current.name, current.version, pack.name, pack.version);
