@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {preparationDisplayReports,parameterReadiness} from './parameterReadiness';
+import {parameterReadiness} from './parameterReadiness';
 import {nodeStatus} from './nodeStatus';
 import {environmentLabel, type EnvironmentReport} from './EnvironmentChecks';
 const specs={megasam_repo:{type:'path'},sharp_repo:{type:'path'},tracker_python:{type:'path'},exposure_metadata_path:{type:'path',optional:true}};
@@ -10,8 +10,8 @@ it('lists mandatory null paths without misclassifying optional metadata',()=>{
  for(const name of ['megasam_repo','sharp_repo','tracker_python'])expect(result.reason).toContain(name);
  expect(result.reason).not.toContain('exposure_metadata_path');
  expect(report.status).toBe('unknown');
- expect(nodeStatus({environment:report,parameterSpecs:specs}).conclusion).toBe('必填参数未填');
- expect(environmentLabel(report)).toBe('必填参数未填');
+ expect(nodeStatus({environment:report}).conclusion).toBe('尚未运行');
+ expect(environmentLabel(report)).toBe('环境无法确认');
 });
 it('does not infer that every null snapshot value is required when schema is unavailable',()=>{
  expect(parameterReadiness(report)!.reason).toContain('megasam_repo');
@@ -28,17 +28,8 @@ it('distinguishes invalid paths, disconnected preparation, and actual environmen
  expect(parameterReadiness({...report,issues:[...report.issues,...env.issues]},specs)!.reason).toContain('另有环境检查问题');
 });
 it('does not replace live execution or snapshot status with current preparation errors',()=>{
- expect(nodeStatus({state:'running',environment:report,parameterSpecs:specs}).conclusion).toBe('正在运行');
- expect(nodeStatus({state:'done',readOnly:true,environment:report,parameterSpecs:specs}).conclusion).toBe('此快照中的运行已完成');
-});
-
-it('uses analyze issues without dropping capability reports or mutating their statuses',()=>{
- const env:EnvironmentReport={status:'satisfied',issues:[]};
- const merged=preparationDisplayReports({a:env,b:env},{graph:{nodes:[{id:'a',params:report.issues[0].required as Record<string,unknown>}]},issues:[{kind:'prepare_params',node_id:'a',message:String(report.issues[0].actual)}]});
- expect(merged.b).toBe(env);
- expect(merged.a.status).toBe('satisfied');
- expect(env.issues).toHaveLength(0);
- expect(parameterReadiness(merged.a,specs)!.conclusion).toBe('必填参数未填');
+ expect(nodeStatus({state:'running',environment:report}).conclusion).toBe('正在运行');
+ expect(nodeStatus({state:'done',readOnly:true,environment:report}).conclusion).toBe('此快照中的运行已完成');
 });
 
 it('scopes legacy preparation blockers without dropping target, global or unknown failures', async()=>{

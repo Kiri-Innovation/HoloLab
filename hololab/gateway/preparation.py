@@ -11,7 +11,7 @@ import hashlib
 import json
 import time
 import uuid
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import TypeAdapter
 
@@ -20,7 +20,7 @@ from hololab.gateway.workflows import WorkflowGraph, freeze_parameter_pins
 from hololab.inline_values import effective_inline
 from hololab.logging import get_logger
 from hololab.manifest.array_migration import migrate_array_params
-from hololab.manifest.schema import ParamSpec
+from hololab.manifest.schema import ParamSpec, ParamType
 from hololab.package_identity import (
     canonical_name,
     offered_identity,
@@ -114,6 +114,33 @@ def effective_parameters(explicit: dict | None, pack: dict | None) -> dict:
     return defaults
 
 
+def validate_execution_parameters(specs: dict, params: dict, *, complete: bool = True) -> None:
+    for key, raw in specs.items():
+        spec = ParamSpec.model_validate(raw)
+        value = params.get(key)
+        if complete and value is None:
+            if spec.optional:
+                continue
+            raise ValueError(f"parameter {key!r}: required value is missing")
+        spec.validate_enum_value(key, value)
+        spec.validate_scalar_value(key, value)
+        spec.validate_array_value(key, value)
+        if not complete:
+            continue
+        if spec.type is ParamType.BOOL and type(value) is not bool:
+            raise ValueError(f"parameter {key!r}: expected a boolean")
+        if spec.type is ParamType.STRING and not isinstance(value, str):
+            raise ValueError(f"parameter {key!r}: expected a string")
+        if spec.type is ParamType.LIST_STR and (
+            not isinstance(value, list) or not all(isinstance(item, str) for item in value)
+        ):
+            raise ValueError(f"parameter {key!r}: expected a list of strings")
+        if spec.type is ParamType.PATH and (
+            not isinstance(value, str) or not value.strip() or "\0" in value
+        ):
+            raise ValueError(f"Parameter {key}: enter a nonempty path string")
+
+
 @type_read_batch
 def resolve_recipe(
     graph: WorkflowGraph,
@@ -121,12 +148,13 @@ def resolve_recipe(
     normalized: dict[str, dict] | None = None,
     *,
     tolerate_parameter_errors: bool = False,
+    parameter_mode: Literal["recipe", "run", "display"] = "recipe",
+    required: set[str] | None = None,
 ) -> WorkflowGraph:
     """Pure resolver. Missing keys differ from explicit null/empty values.
 
-    Display callers can retain a usable graph when one legacy node no longer
-    satisfies its current manifest.  Submission callers deliberately keep the
-    default strict behaviour: an invalid value must never reach an executor.
+    Canvas analysis projects defaults and bindings for comparison. Only
+    run and recipe checks validate parameter values and binding declarations.
     """
     validate_graph_identities(graph)
     from hololab.gateway.array_views import compile_array_views
@@ -172,75 +200,82 @@ def resolve_recipe(
             None,
         )
         actual = (pack.get("publication") or {}).get("code_sha256")
+        check_params = parameter_mode != "display" and (required is None or node.id in required)
         if expected and actual and expected != actual:
             error = ValueError(f"节点 {node.id}: 包身份不匹配; 配方={expected}; 本地={actual}")
-            if not tolerate_parameter_errors:
+            if check_params and not tolerate_parameter_errors:
                 raise error
-            record_invalid_parameters(node.id, error)
-            continue
+            if check_params:
+                record_invalid_parameters(node.id, error)
+                continue
+            issues.append({"node_id": node.id, "kind": "package_identity", "message": str(error)})
         specs = pack.get("params", {})
-        explicit = migrate_array_params(node.algorithm_name, node.algorithm_version, node.params)
         try:
-            for key in node.local_params:
-                if specs.get(key, {}).get("type") == "path" and specs[key].get("optional"):
-                    continue
-                if key not in node.param_bindings and explicit.get(key) in (None, ""):
-                    raise ValueError(f"节点 {node.id} 参数 {key} 需要本地值 (配方未携带绝对路径)")
+            explicit = migrate_array_params(
+                node.algorithm_name, node.algorithm_version, node.params
+            )
         except ValueError as exc:
-            if not tolerate_parameter_errors:
-                raise
-            record_invalid_parameters(node.id, exc)
-            continue
+            if check_params:
+                if not tolerate_parameter_errors:
+                    raise ValueError(f"节点 {node.id}: {exc}") from exc
+                record_invalid_parameters(node.id, exc)
+                continue
+            # A malformed legacy encoding stays visible as saved on the draft.
+            explicit = node.params
         node.params = effective_parameters(explicit, pack)
         sources[node.id] = {k: "inline" if k in explicit else "default" for k in node.params}
-        try:
-            for parameter, variable in node.param_bindings.items():
-                declaration = graph.variables.get(variable)
-                prefix = f"节点 {node.id} 参数 {parameter}: 变量 {variable}"
-                if declaration is None:
-                    raise ValueError(f"{prefix} 未声明 (可能已删除)")
-                spec = specs.get(parameter)
-                if spec is None or spec.get("type") != declaration.type:
-                    raise ValueError(
-                        f"{prefix} 类型不匹配: 声明 {declaration.type}, 参数 {(spec or {}).get('type', '不存在')}"
-                    )
-                value = graph.variable_values.get(variable, declaration.default)
-                if value is None or value == "":
-                    raise ValueError(f"{prefix} 未提供值")
-                if declaration.type == "path":
-                    valid = isinstance(value, str)
-                elif declaration.type == "int":
-                    valid = type(value) is int
-                else:
-                    valid = type(value) in (int, float)
-                if not valid:
-                    raise ValueError(
-                        f"{prefix} 值类型错误: 需要 {declaration.type}, 当前 {type(value).__name__}"
-                    )
-                node.params[parameter] = (
-                    float(value) if declaration.type == "float" else copy.deepcopy(value)
-                )
-                sources[node.id][parameter] = "workflow-variable"
-        except ValueError as exc:
-            if not tolerate_parameter_errors:
-                raise
-            record_invalid_parameters(node.id, exc)
-            continue
         environment[node.id] = [
             k
             for k, s in specs.items()
             if s.get("type") == "path" or (s.get("type") == "array" and s.get("items") == "path")
         ]
         try:
-            for key, raw in specs.items():
-                spec = ParamSpec.model_validate(raw)
-                value = node.params.get(key)
-                spec.validate_enum_value(key, value)
-                spec.validate_scalar_value(key, value)
-                spec.validate_array_value(key, value)
+            if check_params:
+                for key in node.local_params:
+                    if specs.get(key, {}).get("type") == "path" and specs[key].get("optional"):
+                        continue
+                    if key not in node.param_bindings and explicit.get(key) in (None, ""):
+                        raise ValueError(f"参数 {key} 需要本地值 (配方未携带绝对路径)")
+            for parameter, variable in node.param_bindings.items():
+                declaration = graph.variables.get(variable)
+                value = graph.variable_values.get(
+                    variable, declaration.default if declaration else None
+                )
+                if check_params:
+                    prefix = f"参数 {parameter}: 变量 {variable}"
+                    if declaration is None:
+                        raise ValueError(f"{prefix} 未声明 (可能已删除)")
+                    spec = specs.get(parameter)
+                    if spec is None or spec.get("type") != declaration.type:
+                        raise ValueError(
+                            f"{prefix} 类型不匹配: 声明 {declaration.type}, 参数 {(spec or {}).get('type', '不存在')}"
+                        )
+                    if value is None or value == "":
+                        raise ValueError(f"{prefix} 未提供值")
+                    valid = {
+                        "path": isinstance(value, str),
+                        "int": type(value) is int,
+                        "float": type(value) in (int, float),
+                    }[declaration.type]
+                    if not valid:
+                        raise ValueError(
+                            f"{prefix} 值类型错误: 需要 {declaration.type}, 当前 {type(value).__name__}"
+                        )
+                if declaration and declaration.type == "float" and type(value) in (int, float):
+                    try:
+                        value = float(value)
+                    except OverflowError as exc:
+                        if check_params:
+                            raise ValueError(
+                                f"参数 {parameter}: 变量 {variable} 超出浮点数范围"
+                            ) from exc
+                node.params[parameter] = copy.deepcopy(value)
+                sources[node.id][parameter] = "workflow-variable"
+            if check_params:
+                validate_execution_parameters(specs, node.params, complete=parameter_mode == "run")
         except ValueError as exc:
             if not tolerate_parameter_errors:
-                raise
+                raise ValueError(f"节点 {node.id}: {exc}") from exc
             record_invalid_parameters(node.id, exc)
             continue
         if normalized is not None and node.id in normalized:
@@ -248,9 +283,10 @@ def resolve_recipe(
         try:
             inputs = effective_inline(node, result, pack)
         except ValueError as exc:
-            if not tolerate_parameter_errors:
-                raise
-            record_invalid_parameters(node.id, exc)
+            if check_params:
+                if not tolerate_parameter_errors:
+                    raise
+                record_invalid_parameters(node.id, exc)
             continue
         node.port_values = {port: value[1]["value"] for port, value in inputs.items()}
         inline_values[node.id] = inputs
@@ -320,6 +356,7 @@ def changed_nodes(current: WorkflowGraph, frozen: WorkflowGraph) -> set[str]:
         old = previous.get(nid)
         current_value = semantic_node(node)
         old_value = semantic_node(old) if old is not None else None
+        current_value["params"] = comparison_params(current, node, frozen, old)
         # Automatic placement is execution evidence, not a draft edit. A load
         # change must not invalidate usable upstream results or fork a pipeline.
         if all(
@@ -339,24 +376,95 @@ def changed_nodes(current: WorkflowGraph, frozen: WorkflowGraph) -> set[str]:
     return changed
 
 
+def comparison_params(current: WorkflowGraph, node, frozen: WorkflowGraph, old) -> dict:
+    """Reuse recorded path normalization for an unchanged draft value."""
+    execution = current.execution or {}
+    if (
+        not execution.get("display_projection")
+        or old is None
+        or not same_package(
+            node.algorithm_name, node.algorithm_version, old.algorithm_name, old.algorithm_version
+        )
+    ):
+        return node.params
+    requested = (
+        (frozen.execution or {}).get("requested_nodes", {}).get(node.id, {}).get("params", {})
+    )
+    return {
+        **node.params,
+        **{
+            key: old.params[key]
+            for key in execution.get("environment_params", {}).get(node.id, ())
+            if key in requested
+            and key in node.params
+            and key in old.params
+            and node.params[key] == requested[key]
+        },
+    }
+
+
+async def normalize_node_paths(app, node) -> dict:
+    from hololab.gateway.app import _await_node_reply
+    from hololab.protocol.messages import PrepareParamsReq
+
+    session = app.state.registry.get_session(node.assigned_node_id)
+    if session is None:
+        raise ValueError("select an online execution node")
+    name, version = offered_identity(session.packs, node.algorithm_name, node.algorithm_version)
+    req_id = str(uuid.uuid4())
+    reply = await _await_node_reply(
+        app,
+        session,
+        "prepare_params_req",
+        PrepareParamsReq(
+            req_id=req_id, algorithm_name=name, algorithm_version=version, params=node.params
+        ),
+        req_id,
+        pending_key="pending_parameter_preparations",
+    )
+    if reply.get("error"):
+        raise ValueError(reply["error"])
+    return reply["params"]
+
+
+async def validate_frozen_rerun_parameters(app, frozen: WorkflowGraph, required: set[str]) -> None:
+    """Check the requested frozen jobs without replacing any recorded values."""
+    from fastapi import HTTPException
+
+    packs = {
+        package_key(pack["name"], pack["version"]): pack
+        for pack in (frozen.execution or {}).get("packs", [])
+    }
+    for node in frozen.nodes:
+        if node.kind != "algorithm" or node.id not in required:
+            continue
+        specs = packs.get(package_key(node.algorithm_name, node.algorithm_version), {}).get(
+            "params", {}
+        )
+        try:
+            validate_execution_parameters(specs, node.params)
+            if any(
+                spec["type"] == "path" or (spec["type"] == "array" and spec.get("items") == "path")
+                for spec in specs.values()
+            ):
+                await normalize_node_paths(app, node)
+        except (ValueError, TimeoutError, ConnectionError, HTTPException) as exc:
+            raise HTTPException(
+                422, detail=f"节点 {node.id}: {getattr(exc, 'detail', str(exc))}"
+            ) from exc
+
+
 async def prepare_execution(
     app,
     graph: WorkflowGraph,
     *,
     required: set[str] | None = None,
     strict: bool = True,
-    check_environment: bool = True,
+    for_display: bool = False,
     workflow_id: str | None = None,
 ) -> WorkflowGraph:
-    """Resolve and normalize; display callers collect failures with strict=False.
-
-    Only successfully prepared nodes may be submitted. Submission callers keep
-    strict checking, including when consuming a token from a display response.
-    """
+    """Prepare a run, or project canvas evidence without execution checks."""
     from fastapi import HTTPException
-
-    from hololab.gateway.app import _await_node_reply
-    from hololab.protocol.messages import PrepareParamsReq
 
     started = time.monotonic()
     spans: dict[str, float] = {}
@@ -364,7 +472,13 @@ async def prepare_execution(
     # The registry builds fresh dictionaries; resolve_recipe independently
     # freezes only the declarations used by this graph (including providers).
     catalog = app.state.registry.catalog_json()
-    result = resolve_recipe(graph, catalog, tolerate_parameter_errors=not strict)
+    result = resolve_recipe(
+        graph,
+        catalog,
+        tolerate_parameter_errors=not strict,
+        parameter_mode="display" if for_display else "run",
+        required=required,
+    )
     if required is not None and (result.execution or {}).get("array_views"):
         ancestors = set(required)
         while True:
@@ -386,10 +500,9 @@ async def prepare_execution(
         for issue in result.execution["issues"]
         if issue.get("kind") == "invalid_parameters"
     }
-    # Analysis may report an invalid legacy node, but must not spend RPCs on
-    # it or imply that it is executable. Strict submission never reaches here
-    # because resolve_recipe raises before returning such a result.
-    required -= invalid_nodes
+    # Whole-workflow preflight collects value errors for the run dialog.
+    # Invalid nodes do not need any remote checks.
+    required = required - invalid_nodes
     from hololab.gateway.capabilities import check_workflow, enforce_workflow
     from hololab.gateway.device_bindings import resolve_devices
 
@@ -400,7 +513,7 @@ async def prepare_execution(
         result,
         workflow_id=workflow_id,
         required=required,
-        probe=check_environment,
+        probe=not for_display,
         strict=strict,
     )
     result.execution["device_bindings"] = {
@@ -409,19 +522,16 @@ async def prepare_execution(
     result.execution["issues"].extend(devices["issues"])
     required = required - {issue["node_id"] for issue in devices["issues"]}
 
-    # ``/analyze`` needs normalized effective parameters but is not an
-    # execution preflight.  Let it reuse this resolver without fanning out
-    # fresh environment inventories across the whole canvas.
-    result.execution["environment_checks"] = (
-        {
-            **devices["reports"],
-            **await check_workflow(
-                app, result, required=required - set(devices["reports"]), fresh=True
-            ),
-        }
-        if check_environment
-        else {}
-    )
+    if for_display:
+        result.execution["display_projection"] = True
+        return result
+
+    result.execution["environment_checks"] = {
+        **devices["reports"],
+        **await check_workflow(
+            app, result, required=required - set(devices["reports"]), fresh=True
+        ),
+    }
     spans["environment_checks"] = time.monotonic() - started - sum(spans.values())
     blocked = {
         nid
@@ -433,63 +543,22 @@ async def prepare_execution(
         if node.kind != "algorithm" or node.id not in required:
             continue
         paths = result.execution["environment_params"].get(node.id, [])
+        if not paths:
+            continue
         try:
-            session = app.state.registry.get_session(node.assigned_node_id)
-            if session is None:
-                raise ValueError(f"{node.id}: select an online execution node")
-            wire_name, wire_version = offered_identity(
-                session.packs, node.algorithm_name, node.algorithm_version
-            )
-            if not paths:
-                continue
-            req_id = str(uuid.uuid4())
-            reply = await _await_node_reply(
-                app,
-                session,
-                "prepare_params_req",
-                PrepareParamsReq(
-                    req_id=req_id,
-                    algorithm_name=wire_name,
-                    algorithm_version=wire_version,
-                    params=node.params,
-                ),
-                req_id,
-                pending_key="pending_parameter_preparations",
-            )
-            if reply.get("error"):
-                raise ValueError(reply["error"])
-            node.params = reply["params"]
+            node.params = await normalize_node_paths(app, node)
         except (ValueError, TimeoutError, ConnectionError, HTTPException) as exc:
-            report = result.execution["environment_checks"].get(node.id)
-            if report is not None:
-                report["status"] = "unknown"
-                report["issues"].append(
-                    {
-                        "item": "prepare_params",
-                        "required": {key: node.params.get(key) for key in paths},
-                        "actual": str(exc),
-                        "remedy": "检查该节点的执行设备与本地路径参数后重新准备",
-                    }
-                )
-            else:
-                result.execution["issues"].append(
-                    {
-                        "kind": "prepare_params",
-                        "node_id": node.id,
-                        "message": str(exc),
-                    }
-                )
+            message = f"节点 {node.id}: {getattr(exc, 'detail', str(exc))}"
+            if strict:
+                raise ValueError(message) from exc
+            result.execution["issues"].append(
+                {"kind": "prepare_params", "node_id": node.id, "message": message}
+            )
             blocked.add(node.id)
     spans["prepare_params"] = time.monotonic() - started - sum(spans.values())
     if strict:
-        if not check_environment:
-            raise ValueError("strict preparation requires environment checks")
         enforce_workflow(result.execution["environment_checks"])
-        # A preparation token is an execution preflight, not merely an
-        # environment report.  Capture the immutable code evidence here so a
-        # hover/background prepare can pay the node RPC before the user clicks
-        # Run.  ``submitted_execution`` still verifies the token revision
-        # against the latest persisted draft before it can be consumed.
+        # Capture immutable code evidence for the revision checked at submit.
         code_identity_started = time.monotonic()
         await capture_code_identities(app, result, required=required)
         spans["code_identity"] = time.monotonic() - code_identity_started
@@ -499,7 +568,6 @@ async def prepare_execution(
         "prepare profile",
         graph_node_ids=sorted(required),
         strict=strict,
-        environment_checks_enabled=check_environment,
         total_s=round(time.monotonic() - started, 4),
         **{f"{name}_s": round(value, 4) for name, value in spans.items()},
     )
@@ -551,6 +619,14 @@ async def submitted_execution(
             required if required is not None else {n.id for n in graph.nodes if n.kind != "view"}
         )
         if not needed.issubset(set(prepared.execution.get("prepared_nodes", []))):
+            errors = [
+                issue["message"]
+                for issue in prepared.execution.get("issues", [])
+                if issue.get("node_id") in needed
+                and issue.get("kind") in ("invalid_parameters", "prepare_params")
+            ]
+            if errors:
+                raise HTTPException(status_code=422, detail="\n".join(errors))
             raise HTTPException(
                 status_code=409, detail="Preparation does not cover requested nodes"
             )
@@ -653,6 +729,7 @@ def configuration_diff(current: WorkflowGraph, baseline: WorkflowGraph | None) -
             add(f"删除节点: {before[nid].algorithm_name or nid}")
             continue
         old, new = semantic_node(before[nid]), semantic_node(after[nid])
+        new["params"] = comparison_params(current, after[nid], baseline, before[nid])
         label = after[nid].algorithm_name or nid
         for key, title in labels.items():
             if old.get(key) != new.get(key):
@@ -688,27 +765,13 @@ async def analyze_execution(
     from hololab.constants import is_constant
     from hololab.gateway.workflows import downstream_closure, topological_order
 
-    # Analysis is deliberately not an environment preflight.  It is polled
-    # while the canvas is open, so routing it through a normal preparation
-    # used to issue fresh capability RPCs for every algorithm in the graph.
-    # Those reports are neither consumed by staleness/diff calculation nor
-    # trusted as an execution gate (the independent capability endpoint owns
-    # canvas badges; strict preparation owns submission).  We retain path
-    # parameter normalization because it contributes to the effective graph,
-    # but suppress environment RPCs.  In particular, an operator
-    # hovering/clicking one node cannot contend with a 41-node background
-    # environment inventory.
     prepared = await prepare_execution(
         app,
         graph,
         strict=False,
-        check_environment=False,
+        for_display=True,
         workflow_id=workflow_id,
     )
-    # Absence intentionally makes the frontend use its independent capability
-    # check result rather than mistaking an empty analysis-only map for a
-    # capability verdict.
-    prepared.execution.pop("environment_checks", None)
     sid = await app.state.snapshot_jobs.get_latest_snapshot_for_workflow(workflow_id)
     snapshot = await app.state.workflows.get_snapshot(sid) if sid else None
     baseline = await historical_execution(app, snapshot) if snapshot else None
@@ -739,35 +802,26 @@ async def analyze_execution(
     dirty = set(changed)
     for nid in changed:
         dirty |= downstream_closure(prepared, nid)
-    invalid_parameters = {
-        issue["node_id"]: issue["message"]
-        for issue in prepared.execution["issues"]
-        if issue.get("kind") == "invalid_parameters"
-    }
     invalid_edges = {}
+    package_issues = {}
     for issue in prepared.execution["issues"]:
+        if issue.get("kind") == "package_identity":
+            package_issues[issue["node_id"]] = issue["message"]
         if issue.get("kind") == "invalid_edge":
             invalid_edges.setdefault(issue["node_id"], []).append(issue["message"])
     states, diffs = {}, configuration_diff(prepared, baseline)
     for node in prepared.nodes:
         if node.kind == "view" or is_constant(node):
             continue
-        if errors := invalid_edges.get(node.id):
-            states[node.id] = {
-                "kind": "invalid_params",
-                "title": "输入连线无法解析：" + "; ".join(errors),  # noqa: RUF001
-                "changeReasons": errors,
-            }
+        if error := package_issues.get(node.id):
+            states[node.id] = {"kind": "package_identity", "title": error}
             dirty |= downstream_closure(prepared, node.id)
             continue
-        if error := invalid_parameters.get(node.id):
-            # This is a current-draft validation failure, not a failure to
-            # inspect historical evidence. Keep the rest of the canvas
-            # available and make the actionable error visible on this node.
+        if errors := invalid_edges.get(node.id):
             states[node.id] = {
-                "kind": "invalid_params",
-                "title": error,
-                "changeReasons": [error],
+                "kind": "invalid_edge",
+                "title": "输入连线无法解析：" + "; ".join(errors),  # noqa: RUF001
+                "changeReasons": errors,
             }
             dirty |= downstream_closure(prepared, node.id)
             continue
@@ -780,15 +834,11 @@ async def analyze_execution(
         if node.id in changed:
             reasons.append("有效配置与上次运行不同")
         if job and job["state"] in ("pending", "assigned", "running", "orphaned"):
-            mismatch = (
-                node.id in changed
-                or digest(job.get("params", {})) != digest(node.params)
-                or not same_package(
-                    job.get("algorithm_name"),
-                    job.get("algorithm_version"),
-                    node.algorithm_name,
-                    node.algorithm_version,
-                )
+            mismatch = node.id in changed or not same_package(
+                job.get("algorithm_name"),
+                job.get("algorithm_version"),
+                node.algorithm_name,
+                node.algorithm_version,
             )
             states[node.id] = (
                 {

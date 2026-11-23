@@ -86,7 +86,16 @@ class DeviceBindingStore:
         return await self.db.write(write)
 
 
-async def resolve_devices(app, graph, *, workflow_id=None, required=None, probe=True, strict=True):
+async def resolve_devices(
+    app,
+    graph,
+    *,
+    workflow_id=None,
+    required=None,
+    probe=True,
+    strict=True,
+    fresh=True,
+):
     """Resolve into an execution copy only; never persist an automatic assignment.
 
     Explicit logical bindings win. Legacy API assignments remain usable when
@@ -125,6 +134,7 @@ async def resolve_devices(app, graph, *, workflow_id=None, required=None, probe=
         candidates = [app.state.registry.get_session(target)] if target else sessions
         failures = []
         selected = None
+        unavailable_report = None
         for session in candidates:
             if session is None:
                 failures.append(f"compute node {target!r} is not online")
@@ -141,15 +151,19 @@ async def resolve_devices(app, graph, *, workflow_id=None, required=None, probe=
                     continue
             candidate = node.model_copy(update={"assigned_node_id": session.node_id})
             if needed and probe and node.kind == "algorithm" and not target:
-                checked = await check_workflow(app, WorkflowGraph(nodes=[candidate]), fresh=True)
+                checked = await check_workflow(app, WorkflowGraph(nodes=[candidate]), fresh=fresh)
                 report = checked[node.id]
                 if report["status"] in ("missing", "unknown"):
+                    if unavailable_report is None or report["status"] == "unknown":
+                        unavailable_report = report
                     failures.append(f"{session.node_id}: {report['status']}")
                     continue
                 reports[node.id] = report
             selected = session.node_id
             break
         if selected is None:
+            if unavailable_report is not None:
+                reports[node.id] = unavailable_report
             message = f"{node.id}: no suitable online execution node for device {node.device!r}" + (
                 ": " + "; ".join(failures) if failures else ""
             )

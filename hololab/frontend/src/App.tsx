@@ -1,8 +1,6 @@
 import { listWorkflowRuns } from "./api";
 import { capturePersistedInterface, readInterface, recoverHistoricalInterface } from "./canvas/interfaceSnapshot";
 import { WorkflowDevices, useWorkflowDevices, logicalDevices } from "./canvas/WorkflowDevices";
-import { preparationDisplayReports } from "./canvas/parameterReadiness";
-import { useRecipeChecks } from "./packs/useRecipeChecks";
 import { PackManager } from "./packs/PackManager";
 import { WorkflowVariables } from "./canvas/WorkflowVariables";
 import type { VariableDeclarations } from "./wire";
@@ -90,7 +88,6 @@ import {
   rerunFromNode,
   runWorkflow,
   putWorkflowViewerView,
-  warmNodePreparation,
   invalidateWorkflowPreparations,
   type WorkflowViewerView,
 } from "./api";
@@ -130,7 +127,7 @@ import { aggregateJobsToRuntime } from "./canvas/nodeRuntime";
 import { MobileShell, useIsMobilePortrait } from "./canvas/MobileShell";
 import { NodeCreationMenu } from "./canvas/NodeCreationMenu";
 import { NodeContextMenu, type NodeMenuPosition } from "./canvas/NodeContextMenu";
-import { requestStopNode, WARM_NODE_PREPARATION_EVENT } from "./canvas/NodeRunControl";
+import { requestStopNode } from "./canvas/NodeRunControl";
 import { AlgorithmReplacementDialog } from "./canvas/AlgorithmReplacementDialog";
 import { samePorts, replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replaceAlgorithm } from "./canvas/algorithmReplacement";
 import { duplicateNode } from "./canvas/nodeDuplicate";
@@ -1611,14 +1608,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         // dirty save, prepare the server's persisted draft rather than a
         // client-side reconstruction: persistence moves local bindings out of
         // the graph, so the server draft is the exact token revision.
-        let warmFailed = false;
         const saveStartedAt = performance.now();
         saveRecipeRef.current().then(async () => {
           const saveCompletedAt = performance.now();
-          const prepareStartedAt = performance.now();
-          await warmNodePreparation(wid, graph_node_id)
-            .catch(() => { warmFailed = true; });
-          const prepareCompletedAt = performance.now();
           const result = await dispatchNode(wid, graph_node_id);
           const dispatchedAt = performance.now();
           // Chromium DevTools exposes this as a DOM event and console record.
@@ -1630,10 +1622,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             input_delay_ms: Math.max(0, handlerStartedAt - clickedAt),
             click_to_save_ms: saveCompletedAt - clickedAt,
             save_duration_ms: saveCompletedAt - saveStartedAt,
-            click_to_prepare_ms: prepareStartedAt - clickedAt,
-            save_to_prepare_wait_ms: Math.max(0, prepareStartedAt - saveCompletedAt),
-            warm_preparation_ms: prepareCompletedAt - prepareStartedAt,
-            prepare_failed: warmFailed,
             ...result.client_timing,
             click_to_dispatch_response_ms: dispatchedAt - clickedAt,
           };
@@ -1803,17 +1791,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     window.addEventListener(RUN_NODE_EVENT, onRun);
     return () => window.removeEventListener(RUN_NODE_EVENT, onRun);
   }, [resetNodeViewerForRun]);
-
-  // Hover preflight is intentionally best-effort: its token is accepted only
-  // if the gateway's revision check still matches at click time.
-  useEffect(() => {
-    const warm = (event: Event) => {
-      const wid = workflowIdRef.current;
-      if (wid) void warmNodePreparation(wid, (event as CustomEvent<string>).detail).catch(() => {});
-    };
-    window.addEventListener(WARM_NODE_PREPARATION_EVENT, warm);
-    return () => window.removeEventListener(WARM_NODE_PREPARATION_EVENT, warm);
-  }, []);
 
   // Mirror workflowId into a ref so the toggle listener (registered
   // once at mount) can read the current value without re-registering.
@@ -2695,7 +2672,6 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
   // position / preview_open excluded). Passed to RunsPanel to drive both the
   // sentinel row visibility and the "检查" modal content.
   const analysisGraph = toGraph();
-  useRecipeChecks(analysisGraph, !viewingSnapshot);
   const capabilityChecks = useCapabilityChecks(analysisGraph, JSON.stringify([catalog.map(p => [p.name, p.version, p.manifest_hash]), computeNodes.map(n => n.node_id), reconnectTick, workflowDevices.state?.revision]), !viewingSnapshot, workflowId);
   const executionAnalysis = useExecutionAnalysis(workflowId, analysisGraph, {snapshotId:latestSnapshotId, snapshotGraph:latestSnapshotGraph, jobs:latestSnapshotJobs, catalog, devices:computeNodes, reconnect:reconnectTick + snapshotRefreshTick + (workflowDevices.state?.revision ?? 0)});
   useEffect(() => {
@@ -3163,7 +3139,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
             />
           </>
         ) : (
-          <CapabilityContext.Provider value={preparationDisplayReports(executionAnalysis.data?.environment_checks ?? capabilityChecks.reports, executionAnalysis.isCurrent ? executionAnalysis.data : undefined)}>
+          <CapabilityContext.Provider value={capabilityChecks.reports}>
           <ReactFlow
             nodes={nodes}
             edges={displayEdges}
@@ -3234,7 +3210,9 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           onReplace={contextMenuAlgorithm ? () => setReplacementNodeId(contextMenuNode.id) : undefined}
           onRun={contextMenuAlgorithm ? () => {
             if (contextMenuRunning) requestStopNode(contextMenuNode.id);
-            else void dispatchRunNode(contextMenuNode.id);
+            else void dispatchRunNode(contextMenuNode.id).catch(error => {
+              showToast({ tone: "error", message: error instanceof Error ? error.message : String(error) });
+            });
           } : undefined}
           onRefreshVisualizations={contextMenuAlgorithm ? () => refreshNodeVisualizations(contextMenuNode.id) : undefined}
           canRefreshVisualizations={contextMenuHasResultVisualization}
@@ -3243,6 +3221,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       )}
       {replacementNode && replacementData && !viewingSnapshot && <AlgorithmReplacementDialog
         current={replacementData.pack}
+        catalog={replacementData.assembly || replacementData.pack.name.startsWith("@builtin/") ? [] : catalog}
         basis={activeEvidence?.pack ? "依据此节点已核对的完整接口声明；未修改画布。" : replacementData.replacementBasis}
         notice={replacementData.pack.name === 'k4d/ftgspp-init' && replacementData.pack.version === '0.1.7' ? '0.1.8 的空 eval_cameras 表示不留评估相机；接口兼容不代表参数语义完全相同。' : undefined}
         candidates={replacementData.replacementBaseline && !replacementData.assembly && !replacementData.pack.name.startsWith("@builtin/") ? replacementData.replacementMode === 'connections' && lastHydratedWireRef.current ? replacementCandidatesFromConnections(replacementNode.id, lastHydratedWireRef.current, catalog) : replacementCandidates(replacementData.replacementBaseline, catalog) : []}

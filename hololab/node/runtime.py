@@ -1562,7 +1562,7 @@ class NodeRuntime:
                 installed_key(self._packs, request.algorithm_name, request.algorithm_version)
             ]
             params = await asyncio.to_thread(
-                resolve_path_params, pack.manifest.params, request.params, check_exists=False
+                resolve_path_params, pack.manifest.params, request.params
             )
             response = PrepareParamsResp(req_id=request.req_id, params=params)
         except (KeyError, ValueError) as exc:

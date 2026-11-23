@@ -1,4 +1,3 @@
-import {parameterReadiness, type PathParameterSpecs} from './parameterReadiness';
 import type { EnvironmentReport } from "./EnvironmentChecks";
 import type { NodeStaleness } from "./staleness";
 
@@ -16,7 +15,6 @@ export interface NodeStatusInput {
   missingAlgorithm?: { name: string; version: string } | null;
   missingInputs?: string[];
   environment?: EnvironmentReport;
-  parameterSpecs?: PathParameterSpecs;
   state?: string;
   stale?: NodeStaleness | null;
   /** Separate input also defines precedence for defensive/future combinations. */
@@ -28,12 +26,13 @@ export interface NodeStatusInput {
 }
 
 /** Presentation only: never mutate runtime, scheduling, or shared job colours. */
-export function nodeStatus({ state, stale, drift = false, failReason, upstreamBlocked = false, readOnly = false, missingAlgorithm, missingInputs = [], environment, parameterSpecs }: NodeStatusInput): NodeStatusPresentation {
+export function nodeStatus({ state, stale, drift = false, failReason, upstreamBlocked = false, readOnly = false, missingAlgorithm, missingInputs = [], environment }: NodeStatusInput): NodeStatusPresentation {
   const known = !state || ["loading", "pending", "assigned", "running", "done", "failed", "cancelled", "orphaned", "interrupted"].includes(state);
   const missingCurrentAlgorithm = !readOnly && !!missingAlgorithm;
-  const invalidParameters = !readOnly && stale?.kind === "invalid_params";
+  const packageConflict = !readOnly && stale?.kind === "package_identity";
+  const invalidEdge = !readOnly && stale?.kind === "invalid_edge";
   const oldParams = !readOnly && (drift || stale?.kind === "inflight_old_params");
-  const staleReason = stale?.changeReasons?.join("\n") ?? stale?.title;
+  const staleReason = stale?.kind === "invalid_params" ? undefined : stale?.changeReasons?.join("\n") ?? stale?.title;
   const changed = !readOnly && !!staleReason;
   let result: NodeStatusPresentation;
   // A missing local algorithm is more fundamental than any recorded or
@@ -42,8 +41,10 @@ export function nodeStatus({ state, stale, drift = false, failReason, upstreamBl
   if (missingCurrentAlgorithm) {
     const reference = `${missingAlgorithm.name}@${missingAlgorithm.version}`;
     result = { tone: "error", conclusion: "算法未安装", reason: `本机没有 ${reference}；这个节点无法运行。`, action: "请到 Pack Manager 的社区页安装此版本，或改选本机已有的版本。" };
-  } else if (invalidParameters) {
-    result = { tone: "error", conclusion: "参数不合法", reason: staleReason || "当前参数不满足算法要求。", action: "修改参数后再运行；历史结果仍可查看。" };
+  } else if (packageConflict) {
+    result = { tone: "error", conclusion: "算法代码身份不匹配", reason: stale?.title ?? "", action: "检查配方要求的包版本和执行节点安装的代码。" };
+  } else if (invalidEdge) {
+    result = { tone: "error", conclusion: "输入连线无法解析", reason: stale?.title ?? "", action: "修正连线后再运行。" };
   } else if (!known) {
     result = { tone: "neutral", conclusion: "状态暂不可识别", reason: `收到状态：${state}`, action: "请查看任务详情，暂不判断结果是否有效。" };
   } else if (state === "loading") {
@@ -95,12 +96,10 @@ export function nodeStatus({ state, stale, drift = false, failReason, upstreamBl
   // A live run keeps its blue status: the environment warning must not hide
   // the fact that work is currently executing.  Likewise an upstream block
   // is actionable before this node's own environment can matter.
-  const parameterProblem = parameterReadiness(environment, parameterSpecs);
-  if (!readOnly && !upstreamBlocked && state !== "running" && parameterProblem) {
-    result = {tone: "neutral", marker: "environment-missing", ...parameterProblem};
-  } else if (!readOnly && !upstreamBlocked && state !== "running" && environment?.status === "missing") {
+  if (!missingCurrentAlgorithm && !packageConflict && !readOnly && !upstreamBlocked && state !== "running" && environment?.status === "missing") {
     const details = environment.issues.map(i => `${i.item}: 要求=${typeof i.required === "object" ? JSON.stringify(i.required) : i.required}; 当前=${typeof i.actual === "object" ? JSON.stringify(i.actual) : i.actual}; ${i.remedy}`).join("\n");
-    result = {tone: "neutral", marker: "environment-missing", conclusion: "本地能力检查失败", reason: `${environment.source ?? ""}\n${details}`, action: "处理环境问题后重新检查；当前配置不能启动新任务。"};
+    const missingPackage = environment.issues.some(issue => issue.item === "algorithm_package");
+    result = {tone: "neutral", marker: "environment-missing", conclusion: missingPackage ? "执行节点算法不可用" : "本地能力检查失败", reason: `${environment.source ?? ""}\n${details}`, action: missingPackage ? "在执行节点安装此版本或重新选择执行节点。" : "处理环境问题后重新检查；当前配置不能启动新任务。"};
   }
   if (readOnly) {
     result.conclusion = state === "done" ? "此快照中的运行已完成" : `此快照：${result.conclusion}`;

@@ -7,6 +7,8 @@
 .hl-algorithm-replacement-list button { width: 100%; height: auto; min-height: var(--control-h-md); display: block; padding: var(--space-2); border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--text); text-align: left; cursor: pointer; }
 .hl-algorithm-replacement-list button + button { margin-top: var(--space-1); }
 .hl-algorithm-replacement-candidate { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-2); min-width: 0; }
+.hl-algorithm-replacement-identity { display: flex; align-items: baseline; gap: var(--space-1); min-width: 0; }
+.hl-algorithm-replacement-identity small { flex-shrink: 0; }
 .hl-algorithm-replacement-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hl-algorithm-replacement small { color: var(--muted); }
 .hl-algorithm-replacement-list button:hover:not(:disabled), .hl-algorithm-replacement-list button:focus-visible { background: var(--surface-hover); }

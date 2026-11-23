@@ -1,6 +1,65 @@
 import {test,expect} from '@playwright/test';
 import fs from 'node:fs';
 test.use({video:'on',viewport:{width:1500,height:1000}});
+
+test('lists loaded rig extraction versions and blocks replacement across an output change', async ({page}) => {
+  const old = {name:'rig-frame-extraction', version:'0.1.3', manifest_hash:'rig-013', node_ids:[],
+    inputs:{capture:{tags:['rig_capture'], required:true}},
+    outputs:{frames:{tags:['image'], arrayed:true, dim_labels:['cam', 'index']}}, params:{}};
+  const compatible = {...old, name:'kiri/rig-frame-extraction', version:'0.1.4', manifest_hash:'rig-014'};
+  const changed = {...compatible, version:'0.1.5', manifest_hash:'rig-015',
+    outputs:{frames:{tags:['colmap4d-images'], arrayed:true, dim_labels:['cam']}}};
+  const alternative = {...old, name:'compatible-extraction'};
+  const capture = {...old, name:'rig-capture-source', version:'0.1.1', inputs:{}, outputs:{capture:{tags:['rig_capture']}}};
+  const sink = {...old, name:'frame-consumer', inputs:{frames:{...old.outputs.frames, required:true}}, outputs:{}};
+  const graph = {nodes:[capture, old, sink].map((pack, index) => ({
+    id:pack.name, algorithm_name:pack.name, algorithm_version:pack.version, params:{}, position:{x:index * 360, y:0},
+  })), edges:[
+    {id:'capture-wire', source:capture.name, sourceHandle:'capture', target:old.name, targetHandle:'capture'},
+    {id:'frames-wire', source:old.name, sourceHandle:'frames', target:sink.name, targetHandle:'frames'},
+  ]};
+  let analyzed: typeof graph | undefined;
+  await page.routeWebSocket('**', () => {});
+  await page.route('**/api/**', async route => {
+    const req = route.request();
+    const path = new URL(req.url()).pathname;
+    let body: unknown = [];
+    if (path === '/api/pack-catalog') body = [old, alternative, changed, capture, compatible, sink];
+    else if (path.endsWith('/device-bindings')) body = {workflow_id:'rig-replacement', revision:0, bindings:{}};
+    else if (path.endsWith('/canvas-state')) body = {canvas_jobs:[], staleness:{}};
+    else if (path === '/api/nodes/metrics/history') body = {nodes:{}, sample_interval_s:3};
+    else if (path === '/api/workflows/rig-replacement') body = {workflow_id:'rig-replacement', name:'Rig replacement', graph, created_ts:1, updated_ts:1};
+    else if (path.endsWith('/analyze')) {
+      analyzed = req.postDataJSON().graph;
+      body = {revision:'1', graph:analyzed, staleness:{}, diff:[], environment_params:{}, canvas_jobs:[]};
+    }
+    await route.fulfill({json:body});
+  });
+  await page.goto('/w/rig-replacement');
+  const node = page.locator('.react-flow__node[data-id="rig-frame-extraction"]');
+  await node.click({button:'right'});
+  await page.getByRole('menuitem',{name:'替换为算法…'}).click();
+  const dialog = page.getByRole('dialog');
+  const choices = dialog.locator('.hl-algorithm-replacement-list button');
+  await expect(choices).toHaveText([
+    /@0\.1\.5.*接口有变，需重新接线/, /@0\.1\.4/, /@0\.1\.3.*当前/, /compatible-extraction/,
+  ]);
+  const search = dialog.getByRole('textbox',{name:'搜索算法'});
+  await search.fill('0.1.5');
+  await expect(choices).toHaveCount(1);
+  await expect(choices.first()).toBeDisabled();
+  await choices.first().evaluate((button: HTMLButtonElement) => button.click());
+  await expect(dialog).toBeVisible();
+  await expect(node).toContainText('v0.1.3');
+  await search.clear();
+  await expect(dialog.getByRole('button',{name:/当前/})).toBeDisabled();
+  await expect(dialog.getByRole('button',{name:/^compatible-extraction/})).toBeEnabled();
+  await dialog.getByRole('button',{name:'kiri/rig-frame-extraction @0.1.4'}).click();
+  await expect(node).toContainText('v0.1.4');
+  await expect.poll(() => analyzed?.nodes.find(node => node.id === old.name)?.algorithm_version).toBe('0.1.4');
+  expect(analyzed?.edges).toEqual(graph.edges);
+});
+
 for (const delayed of [false, true]) test(`replace algorithm updates analysis, autosave and reload (delayed=${delayed})`,async({page})=>{
   let releaseAnalysis!: () => void;
   const heldAnalysis = new Promise<void>(resolve => { releaseAnalysis = resolve; });

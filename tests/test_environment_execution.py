@@ -429,7 +429,7 @@ async def test_node_blocks_missing_contract_before_process_spawn(tmp_path, monke
     assert "未安装" in node._send_job_fail.call_args.kwargs["message"]
 
 
-def test_display_retains_node_path_preparation_error(tmp_path, monkeypatch):
+def test_run_preparation_keeps_path_failures_separate_from_environment(tmp_path, monkeypatch):
     pack = make_pack(tmp_path)
     selected = session([pack])
     selected.environment_checks = True
@@ -439,8 +439,8 @@ def test_display_retains_node_path_preparation_error(tmp_path, monkeypatch):
         if kind == "capability_req":
             return {"report": {"status": "satisfied", "issues": []}}
         assert kind == "prepare_params_req"
-        if request.params["path"] == "":
-            return {"error": "Parameter path: enter a nonempty path string"}
+        if request.params["path"] == "/missing":
+            return {"error": "Parameter path: path does not exist on this compute node: /missing"}
         return {"params": {"path": "/normalized/good"}}
 
     monkeypatch.setattr("hololab.gateway.app._await_node_reply", rpc)
@@ -458,13 +458,16 @@ def test_display_retains_node_path_preparation_error(tmp_path, monkeypatch):
                     assigned_node_id="n",
                     params={"path": path},
                 )
-                for nid, path in [("bad", ""), ("good", "good")]
+                for nid, path in [("bad", "/missing"), ("good", "/good")]
             ]
         )
 
         async def exercise():
             result = await prepare_execution(client.app, graph, strict=False)
-            assert result.execution["environment_checks"]["bad"]["status"] == "unknown"
+            assert result.execution["environment_checks"]["bad"]["status"] == "satisfied"
+            [issue] = result.execution["issues"]
+            assert issue["kind"] == "prepare_params"
+            assert "Parameter path: path does not exist" in issue["message"]
             assert result.execution["environment_checks"]["good"]["status"] == "satisfied"
             assert result.execution["prepared_nodes"] == ["good"]
             assert result.nodes[1].params["path"] == "/normalized/good"
@@ -472,3 +475,142 @@ def test_display_retains_node_path_preparation_error(tmp_path, monkeypatch):
                 await prepare_execution(client.app, graph, required={"bad"})
 
         client.portal.call(exercise)
+
+
+@pytest.mark.parametrize(
+    ("params", "binding", "reason"),
+    [
+        ({"capture_dir": ""}, None, "capture_dir"),
+        ({"capture_dir": "/capture", "stride": "2"}, None, "finite int"),
+        ({"capture_dir": "/capture", "stride": 0}, None, "must be >= 1"),
+        ({"capture_dir": "/capture"}, "deleted_dir", "deleted_dir"),
+    ],
+)
+def test_canvas_defers_capture_parameter_errors_to_explicit_run(
+    tmp_path, monkeypatch, params, binding, reason
+):
+    from tests.test_frozen_execution import setup
+
+    with TestClient(create_app(db_path=tmp_path / "capture.sqlite")) as client:
+        app, catalog, graph, received = setup(client, tmp_path)
+        graph.nodes[0].algorithm_name = catalog[0]["name"] = "rig-capture-source"
+        graph.nodes[0].algorithm_version = catalog[0]["version"] = "0.1.1"
+        offered = app.state.registry.get_session("node").packs[0]
+        offered.name, offered.version = "rig-capture-source", "0.1.1"
+        catalog[0]["params"] = {
+            "capture_dir": {"type": "path"},
+            "stride": {"type": "int", "default": 1, "min": 1},
+        }
+        graph.nodes[0].params = params
+        if binding:
+            graph.nodes[0].param_bindings = {"capture_dir": binding}
+        rpc = AsyncMock(
+            side_effect=AssertionError("invalid run or passive analysis sent a node RPC")
+        )
+        monkeypatch.setattr("hololab.gateway.app._await_node_reply", rpc)
+
+        async def save():
+            return await app.state.workflows.save_draft(
+                workflow_id=None, name="capture", graph=graph
+            )
+
+        row = client.portal.call(save)
+        base = f"/api/workflows/{row.workflow_id}"
+        for response in [
+            client.get(base + "/canvas-state"),
+            client.post(base + "/analyze", json={"graph": graph.model_dump(mode="json")}),
+        ]:
+            assert response.status_code == 200, response.text
+            assert response.json()["issues"] == []
+            assert response.json()["staleness"]["a"]["kind"] == "self_dirty"
+        assert (
+            client.post(
+                "/api/capabilities/check", json={"graph": graph.model_dump(mode="json")}
+            ).json()["nodes"]["a"]["status"]
+            == "undeclared"
+        )
+
+        for route, body in [("/prepare", {"node_id": "a"}), ("/dispatch/a", None), ("/run", None)]:
+            response = client.post(base + route, json=body)
+            assert response.status_code == 422, response.text
+            assert reason in response.json()["detail"]
+        prepared = client.post(base + "/prepare", json={}).json()
+        assert reason in prepared["run_blockers"][0]
+        blocked = client.post(base + "/run", headers={"X-Preparation-Token": prepared["token"]})
+        assert blocked.status_code == 422, blocked.text
+        assert reason in blocked.json()["detail"]
+        assert received == []
+        assert client.get(base + "/runs").json() == []
+        rpc.assert_not_called()
+
+
+def test_automatic_capability_check_retains_missing_and_unknown_evidence(tmp_path, monkeypatch):
+    pack = make_pack(tmp_path)
+    selected = session([pack])
+    selected.environment_checks = True
+    selected.packs[0].requires = pack.manifest.requires.model_dump()
+    with TestClient(create_app(db_path=tmp_path / "capabilities.sqlite")) as client:
+        client.app.state.registry._sessions["n"] = selected
+        graph = WorkflowGraph(
+            nodes=[GraphNode(id="a", algorithm_name="demo", algorithm_version="1.0.0")]
+        )
+        for status in ("missing", "unknown", "satisfied"):
+            report = {"status": status, "issues": []}
+            rpc = AsyncMock(return_value={"report": report})
+            monkeypatch.setattr("hololab.gateway.app._await_node_reply", rpc)
+            response = client.post("/api/capabilities/check", json={"graph": graph.model_dump()})
+            assert response.status_code == 200, response.text
+            assert response.json()["nodes"]["a"]["status"] == status
+            rpc.assert_awaited_once()
+            assert rpc.call_args.args[2] == "capability_req"
+
+
+def test_snapshot_rerun_rejects_invalid_frozen_parameters_before_creating_a_run(tmp_path):
+    from tests.test_frozen_execution import setup
+
+    with TestClient(create_app(db_path=tmp_path / "rerun.sqlite")) as client:
+        app, catalog, graph, received = setup(client, tmp_path)
+        catalog[0]["params"]["capture_dir"] = {"type": "path"}
+        graph.nodes[0].params = {"count": 12, "capture_dir": ""}
+        graph.execution = {"packs": catalog}
+
+        async def save():
+            row = await app.state.workflows.save_draft(
+                workflow_id=None, name="capture", graph=graph
+            )
+            return await app.state.workflows.create_snapshot(
+                workflow_id=row.workflow_id, graph=graph
+            )
+
+        snapshot = client.portal.call(save)
+        response = client.post(f"/api/snapshots/{snapshot.snapshot_id}/rerun-from/a")
+        assert response.status_code == 422, response.text
+        assert "capture_dir" in response.json()["detail"]
+        assert len(client.get(f"/api/workflows/{snapshot.workflow_id}/runs").json()) == 1
+        assert received == []
+
+
+@pytest.mark.asyncio
+async def test_prepare_params_rpc_checks_path_exists_on_execution_node(tmp_path):
+    from hololab.manifest.schema import ParamSpec
+    from hololab.protocol.messages import PrepareParamsReq
+
+    manifest = SimpleNamespace(
+        params={"capture_dir": ParamSpec(type="path", path_kind="directory")}
+    )
+    runtime = SimpleNamespace(
+        _packs={("rig-capture-source", "0.1.1"): SimpleNamespace(manifest=manifest)},
+        _safe_send=AsyncMock(),
+    )
+    capture_dir = tmp_path / "capture"
+    request = PrepareParamsReq(
+        req_id="path-check",
+        algorithm_name="rig-capture-source",
+        algorithm_version="0.1.1",
+        params={"capture_dir": str(capture_dir)},
+    )
+    await NodeRuntime._prepare_params_reply(runtime, request)
+    assert "path does not exist" in runtime._safe_send.call_args.args[1].error
+    capture_dir.mkdir()
+    await NodeRuntime._prepare_params_reply(runtime, request)
+    assert runtime._safe_send.call_args.args[1].params == request.params

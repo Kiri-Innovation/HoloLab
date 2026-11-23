@@ -6,7 +6,6 @@ import { showToast } from "../ui/Toast";
 
 export const canStopNode = (state?: string) => ["pending", "assigned", "running", "orphaned"].includes(state ?? "");
 export const STOP_NODE_EVENT = "hololab:stop-node";
-export const WARM_NODE_PREPARATION_EVENT = "hololab:warm-node-preparation";
 
 /** Invokes the mounted card control so all stop confirmation semantics stay shared. */
 export function requestStopNode(graph_node_id: string): void {
@@ -80,11 +79,6 @@ export function NodeRunControl({ id, state, jobId, pending, stale, blockedReason
         if (pending) return;
         if (stoppable && jobId) { setError(null); setConfirmJob(jobId); }
         else if (!disabled) onRun(inputAt);
-      }}
-      onPointerEnter={() => {
-        // This does not dispatch. It only asks App to preflight the current
-        // persisted revision, so a later click can consume its token.
-        if (!stoppable && !pending && !blockedReason) window.dispatchEvent(new CustomEvent<string>(WARM_NODE_PREPARATION_EVENT, { detail: id }));
       }}
       style={{ border: `1px solid ${staleTint ? "var(--warning)" : "var(--border-strong)"}`,
         background: busy ? "var(--surface-3)" : staleTint ? "var(--warning-soft)" : "var(--surface-raised)",

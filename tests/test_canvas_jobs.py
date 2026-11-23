@@ -1,6 +1,6 @@
 from copy import deepcopy
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -13,10 +13,13 @@ async def test_historical_execution_copies_only_used_frozen_packs():
     from hololab.gateway.preparation import historical_execution
 
     source = graph()
-    source.execution = dict(draft_updated_ts=123, packs=[
-        dict(name="test", version="1.0.0", params={"value": 1}),
-        dict(name="unused", version="1.0.0", params={"value": 2}),
-    ])
+    source.execution = dict(
+        draft_updated_ts=123,
+        packs=[
+            dict(name="test", version="1.0.0", params={"value": 1}),
+            dict(name="unused", version="1.0.0", params={"value": 2}),
+        ],
+    )
     before = source.model_dump()
     result = await historical_execution(None, SimpleNamespace(graph=source))
     assert [p["name"] for p in result.execution["packs"]] == ["test"]
@@ -29,6 +32,7 @@ async def test_historical_execution_copies_only_used_frozen_packs():
 @pytest.mark.asyncio
 async def test_canvas_state_cache_is_completion_based_coalesced_and_compact(monkeypatch):
     import asyncio
+
     import hololab.gateway.canvas_jobs as canvas
 
     clock = [0.0]
@@ -40,8 +44,11 @@ async def test_canvas_state_cache_is_completion_based_coalesced_and_compact(monk
         calls.append(kwargs)
         entered.set()
         await release.wait()
-        return dict(canvas_jobs=[dict(job_id="j", state="running", params={"large": "unused"})],
-                    staleness={}, issues=[dict(kind="invalid_edge", edge_id="broken")])
+        return dict(
+            canvas_jobs=[dict(job_id="j", state="running", params={"large": "unused"})],
+            staleness={},
+            issues=[dict(kind="invalid_edge", edge_id="broken")],
+        )
 
     monkeypatch.setattr("hololab.gateway.preparation.analyze_execution", analyze)
     app = SimpleNamespace(state=SimpleNamespace())
@@ -71,6 +78,7 @@ async def test_canvas_state_cache_is_completion_based_coalesced_and_compact(monk
 @pytest.mark.asyncio
 async def test_canvas_state_shared_work_survives_disconnect_and_retries_errors(monkeypatch):
     import asyncio
+
     from hololab.gateway.canvas_jobs import canvas_state
 
     entered, release = asyncio.Event(), asyncio.Event()
@@ -104,9 +112,18 @@ async def test_canvas_state_shared_work_survives_disconnect_and_retries_errors(m
 @pytest.fixture
 def device_resolution(monkeypatch):
     """These display tests isolate invalid graphs from gateway routing/storage."""
-    monkeypatch.setattr("hololab.gateway.device_bindings.resolve_devices", AsyncMock(return_value={
-        "revision": 0, "assignments": {}, "routing": {}, "reports": {}, "issues": [],
-    }))
+    monkeypatch.setattr(
+        "hololab.gateway.device_bindings.resolve_devices",
+        AsyncMock(
+            return_value={
+                "revision": 0,
+                "assignments": {},
+                "routing": {},
+                "reports": {},
+                "issues": [],
+            }
+        ),
+    )
 
 
 def graph():
@@ -274,7 +291,13 @@ async def test_new_membership_uses_canvas_result_from_sibling_branch(monkeypatch
     g = graph()
     bridge = SimpleNamespace(attribute_many=AsyncMock())
     handles = SimpleNamespace(list_by_job=AsyncMock(return_value=[]))
-    app = SimpleNamespace(state=SimpleNamespace(snapshot_jobs=bridge, handles=handles, jobs_store=SimpleNamespace(get=AsyncMock(return_value=None))))
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            snapshot_jobs=bridge,
+            handles=handles,
+            jobs_store=SimpleNamespace(get=AsyncMock(return_value=None)),
+        )
+    )
     chosen = [job("a", "done", "-branch"), job("b", "done", "-branch"), job("c", "done", "-old")]
     monkeypatch.setattr("hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=chosen))
 
@@ -316,71 +339,121 @@ async def test_analysis_pairs_history_verdict_with_job_membership(monkeypatch, m
 
 
 @pytest.mark.asyncio
-async def test_display_analysis_isolates_invalid_legacy_node_parameters(monkeypatch, device_resolution):
-    """One old parameter cannot turn the whole canvas-state response into a 500."""
+async def test_display_analysis_projects_draft_values_without_parameter_validation(
+    monkeypatch, device_resolution
+):
     from hololab.gateway.preparation import analyze_execution
 
     g = WorkflowGraph(
-        nodes=[GraphNode(id="bad", algorithm_name="test", algorithm_version="1.0.0", params={"skip": 0})]
+        nodes=[
+            GraphNode(
+                id="bad",
+                algorithm_name="test",
+                algorithm_version="1.0.0",
+                params={"skip": 0, "capture_dir": ""},
+                param_bindings={"count": "deleted"},
+            ),
+            GraphNode(
+                id="legacy",
+                algorithm_name="float-array-source",
+                algorithm_version="0.1.0",
+                params={"items": "incomplete JSON"},
+            ),
+        ]
     )
-    catalog = [{
-        "name": "test", "version": "1.0.0",
-        "params": {"skip": {"type": "int", "default": 1, "min": 1}},
-    }]
+    catalog = [
+        {
+            "name": "test",
+            "version": "1.0.0",
+            "params": {
+                "skip": {"type": "int", "default": 1, "min": 1},
+                "capture_dir": {"type": "path"},
+                "count": {"type": "int", "default": 2},
+            },
+        },
+        {"name": "float-array-source", "version": "0.1.0", "params": {}},
+    ]
+    validate = Mock(side_effect=AssertionError("canvas validated parameters"))
+    rpc = AsyncMock(side_effect=AssertionError("canvas sent an execution RPC"))
+    monkeypatch.setattr("hololab.gateway.preparation.validate_execution_parameters", validate)
+    monkeypatch.setattr("hololab.gateway.app._await_node_reply", rpc)
     monkeypatch.setattr("hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=[]))
-    app = SimpleNamespace(state=SimpleNamespace(
-        registry=SimpleNamespace(catalog_json=lambda: catalog),
-        snapshot_jobs=SimpleNamespace(get_latest_snapshot_for_workflow=AsyncMock(return_value=None)),
-    ))
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            registry=SimpleNamespace(catalog_json=lambda: catalog),
+            snapshot_jobs=SimpleNamespace(
+                get_latest_snapshot_for_workflow=AsyncMock(return_value=None)
+            ),
+        )
+    )
 
-    result = await analyze_execution(app, "w", g, display_only=True)
-
-    assert result["staleness"]["bad"] == {
-        "kind": "invalid_params",
-        "title": "参数不合法：parameter 'skip': must be >= 1, got 0",
-        "changeReasons": ["参数不合法：parameter 'skip': must be >= 1, got 0"],
-    }
-    assert result["issues"][0]["node_id"] == "bad"
+    for first_paint in [True, False]:
+        result = await analyze_execution(app, "w", g, display_only=first_paint)
+        assert result["staleness"]["bad"]["kind"] == "self_dirty"
+        assert result["graph"]["nodes"][0]["params"] == {
+            "skip": 0,
+            "capture_dir": "",
+            "count": None,
+        }
+        assert result["graph"]["nodes"][1]["params"] == {"items": "incomplete JSON"}
+        assert result["issues"] == []
+    validate.assert_not_called()
+    rpc.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_display_analysis_isolates_zero_candidate_edge(monkeypatch, device_resolution):
-    from tests.test_array_view_planner import fixture
     from hololab.gateway.preparation import analyze_execution
+    from tests.test_array_view_planner import fixture
+
     g, catalog = fixture()
-    catalog[0]['outputs']['out'] = dict(tags=['image'], arrayed=False)
+    catalog[0]["outputs"]["out"] = dict(tags=["image"], arrayed=False)
     before = g.model_dump()
-    monkeypatch.setattr('hololab.gateway.canvas_jobs.canvas_jobs', AsyncMock(return_value=[]))
-    app = SimpleNamespace(state=SimpleNamespace(
-        registry=SimpleNamespace(catalog_json=lambda: catalog, get_session=lambda _: None),
-        snapshot_jobs=SimpleNamespace(get_latest_snapshot_for_workflow=AsyncMock(return_value=None)),
-    ))
-    result = await analyze_execution(app, 'w', g, display_only=True)
+    monkeypatch.setattr("hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=[]))
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            registry=SimpleNamespace(catalog_json=lambda: catalog, get_session=lambda _: None),
+            snapshot_jobs=SimpleNamespace(
+                get_latest_snapshot_for_workflow=AsyncMock(return_value=None)
+            ),
+        )
+    )
+    result = await analyze_execution(app, "w", g, display_only=True)
     assert g.model_dump() == before
-    assert result['issues'][0]['edge_id'] == 'a'
-    assert 'got 0' in result['staleness']['slice']['title']
-    assert 'source' in result['staleness']
-    assert result['canvas_jobs'] == []
+    assert result["issues"][0]["edge_id"] == "a"
+    assert "got 0" in result["staleness"]["slice"]["title"]
+    assert "source" in result["staleness"]
+    assert result["canvas_jobs"] == []
 
 
-def test_canvas_state_returns_200_with_invalid_edge_and_other_jobs(monkeypatch, tmp_path, device_resolution):
+def test_canvas_state_returns_200_with_invalid_edge_and_other_jobs(
+    monkeypatch, tmp_path, device_resolution
+):
     from fastapi.testclient import TestClient
+
     from hololab.gateway.app import create_app
     from tests.test_array_view_planner import fixture
+
     g, catalog = fixture()
-    catalog[0]['outputs']['out'] = dict(tags=['image'], arrayed=False)
-    app = create_app(db_path=tmp_path / 'unused.sqlite')
+    catalog[0]["outputs"]["out"] = dict(tags=["image"], arrayed=False)
+    app = create_app(db_path=tmp_path / "unused.sqlite")
     app.state.registry = SimpleNamespace(catalog_json=lambda: catalog, get_session=lambda _: None)
-    app.state.workflows = SimpleNamespace(get_draft=AsyncMock(return_value=SimpleNamespace(graph=g, updated_ts=1)))
-    app.state.snapshot_jobs = SimpleNamespace(get_latest_snapshot_for_workflow=AsyncMock(return_value=None))
-    selected = dict(job_id='retained', graph_node_id='source', state='done', created_ts=1)
-    monkeypatch.setattr('hololab.gateway.canvas_jobs.canvas_jobs', AsyncMock(return_value=[selected]))
+    app.state.workflows = SimpleNamespace(
+        get_draft=AsyncMock(return_value=SimpleNamespace(graph=g, updated_ts=1))
+    )
+    app.state.snapshot_jobs = SimpleNamespace(
+        get_latest_snapshot_for_workflow=AsyncMock(return_value=None)
+    )
+    selected = dict(job_id="retained", graph_node_id="source", state="done", created_ts=1)
+    monkeypatch.setattr(
+        "hololab.gateway.canvas_jobs.canvas_jobs", AsyncMock(return_value=[selected])
+    )
     client = TestClient(app, raise_server_exceptions=True)
-    response = client.get('/api/workflows/w/canvas-state')
+    response = client.get("/api/workflows/w/canvas-state")
     client.close()
     assert response.status_code == 200
     body = response.json()
-    assert body['issues'][0]['edge_id'] == 'a'
-    assert 'got 0' in body['staleness']['slice']['title']
-    assert body['canvas_jobs'][0]['job_id'] == 'retained'
-    assert g.edges[0].source == 'source'
+    assert body["issues"][0]["edge_id"] == "a"
+    assert "got 0" in body["staleness"]["slice"]["title"]
+    assert body["canvas_jobs"][0]["job_id"] == "retained"
+    assert g.edges[0].source == "source"

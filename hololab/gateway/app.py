@@ -2140,8 +2140,22 @@ def _mount_routes(app: FastAPI) -> None:
             from hololab.gateway.device_bindings import resolve_devices
 
             graph = WorkflowGraph.model_validate(body["graph"])
-            await resolve_devices(app, graph, workflow_id=body.get("workflow_id"), strict=False)
-            return {"nodes": await check_workflow(app, graph, fresh=bool(body.get("fresh", False)))}
+            fresh = bool(body.get("fresh", False))
+            routing = await resolve_devices(
+                app,
+                graph,
+                workflow_id=body.get("workflow_id"),
+                strict=False,
+                fresh=fresh,
+            )
+            reports = routing["reports"]
+            unchecked = {node.id for node in graph.nodes} - reports.keys()
+            return {
+                "nodes": {
+                    **reports,
+                    **await check_workflow(app, graph, required=unchecked, fresh=fresh),
+                }
+            }
         except (ValueError, KeyError) as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -3598,9 +3612,13 @@ def _mount_routes(app: FastAPI) -> None:
                     ),
                 )
 
-        from hololab.gateway.preparation import historical_execution
+        from hololab.gateway.preparation import (
+            historical_execution,
+            validate_frozen_rerun_parameters,
+        )
 
         frozen = await historical_execution(app, old_snap)
+        await validate_frozen_rerun_parameters(app, frozen, to_rerun)
         new_snapshot = await workflows_store.create_snapshot(
             workflow_id=old_snap.workflow_id,
             graph=frozen,

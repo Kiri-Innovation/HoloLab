@@ -1,7 +1,7 @@
 import { capturePersistedInterface } from './interfaceSnapshot';
 import type { Node } from '@xyflow/react';
 import type { CatalogPack, GraphNode, ParamSpec, WorkflowGraph, PortTypeVariant, InputPortSpec } from '../wire';
-import { canonicalPackageName, samePackage } from '../packageIdentity';
+import { canonicalPackageName, packageKey, samePackage } from '../packageIdentity';
 import { declarationType } from '../types/legacyPortType';
 import type { PortDeclaration } from '../types/portTypeIR';
 import { algorithmNodeData } from './nodeMeta';
@@ -80,6 +80,23 @@ export function replacementCandidates(current: CatalogPack, catalog: CatalogPack
     return Number(bn === name) - Number(an === name) || an.localeCompare(bn) ||
       versionDescending(a.version, b.version);
   });
+}
+
+/** Display loaded same-name versions alongside the existing approved targets. */
+export function replacementChoices(current: CatalogPack, catalog: CatalogPack[], candidates: CatalogPack[]) {
+  const name = canonicalPackageName(current.name);
+  const sameName = new Map<string, {pack: CatalogPack; active: boolean; canReplace: boolean}>();
+  const others = candidates.filter(pack => canonicalPackageName(pack.name) !== name)
+    .map(pack => ({pack, active: false, canReplace: true}));
+  const approved = new Set(candidates);
+  for (const pack of [...candidates, ...catalog]) {
+    if (pack.name.startsWith('@builtin/') || canonicalPackageName(pack.name) !== name) continue;
+    const key = packageKey(pack.name, pack.version);
+    if (sameName.has(key)) continue;
+    const active = samePackage(current.name, current.version, pack.name, pack.version);
+    sameName.set(key, {pack, active, canReplace: !active && approved.has(pack)});
+  }
+  return [...Array.from(sameName.values()).sort((a, b) => versionDescending(a.pack.version, b.pack.version)), ...others];
 }
 
 /**

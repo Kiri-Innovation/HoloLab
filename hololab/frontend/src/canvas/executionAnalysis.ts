@@ -1,4 +1,3 @@
-import type { EnvironmentReport } from "./EnvironmentChecks";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SnapshotJob, WorkflowGraph } from '../wire';
 import type { NodeStaleness } from './staleness';
@@ -11,7 +10,6 @@ export type CanvasJob = SnapshotJob & { snapshot_id: string; historical_only?: b
 export interface ExecutionAnalysis {
   issues?: {kind: string; node_id?: string; edge_id?: string; message: string}[];
   canvas_jobs?: CanvasJob[];
-  environment_checks?: Record<string, EnvironmentReport>;
   revision: string;
   graph: WorkflowGraph;
   staleness: Record<string, NodeStaleness | null>;

@@ -4,7 +4,12 @@ import asyncio
 import time
 
 from hololab.constants import is_constant
-from hololab.gateway.preparation import changed_nodes, digest, historical_execution
+from hololab.gateway.preparation import (
+    changed_nodes,
+    comparison_params,
+    digest,
+    historical_execution,
+)
 from hololab.gateway.workflows import downstream_closure, topological_order
 
 
@@ -21,20 +26,36 @@ async def canvas_state(app, workflow_id, row):
         pending = app.state.canvas_state_pending = {}
     flight = pending.get(workflow_id)
     if flight is None or flight[0] != row.updated_ts:
+
         async def compute():
             from hololab.gateway.preparation import analyze_execution
 
             evidence = await analyze_execution(app, workflow_id, row.graph, display_only=True)
             # First paint does not need full jobs, prepared graphs or catalogues.
             fields = (
-                "job_id", "graph_node_id", "parent_job_id", "shard_element_id",
-                "shard_element_ids", "state", "progress", "expected_shards",
-                "node_id", "workflow_id", "snapshot_id", "created_ts", "started_ts",
-                "updated_ts", "fail_reason", "output_handles", "historical_only",
+                "job_id",
+                "graph_node_id",
+                "parent_job_id",
+                "shard_element_id",
+                "shard_element_ids",
+                "state",
+                "progress",
+                "expected_shards",
+                "node_id",
+                "workflow_id",
+                "snapshot_id",
+                "created_ts",
+                "started_ts",
+                "updated_ts",
+                "fail_reason",
+                "output_handles",
+                "historical_only",
             )
             result = {
-                "canvas_jobs": [{key: job[key] for key in fields if key in job}
-                                for job in evidence["canvas_jobs"]],
+                "canvas_jobs": [
+                    {key: job[key] for key in fields if key in job}
+                    for job in evidence["canvas_jobs"]
+                ],
                 "staleness": evidence["staleness"],
                 "issues": evidence["issues"],
             }
@@ -83,9 +104,11 @@ def select_canvas_jobs(graph, candidates, sources):
         sid, job = chosen[nid]
         if nid in invalid_by_source[sid]:
             continue
-        if "params" in job and digest(job["params"]) != digest(nodes[nid].params):
-            continue
-        _, source_jobs = sources[sid]
+        frozen, source_jobs = sources[sid]
+        if "params" in job:
+            old = next((node for node in frozen.nodes if node.id == nid), None)
+            if digest(job["params"]) != digest(comparison_params(graph, nodes[nid], frozen, old)):
+                continue
         source_parents = {
             j["graph_node_id"]: j
             for j in sorted(source_jobs, key=lambda j: (j.get("created_ts", 0), j["job_id"]))
@@ -131,6 +154,7 @@ async def canvas_jobs(app, workflow_id, graph):
         ) as cur,
     ):
         rows = await cur.fetchall()
+
     async def load_source(sid):
         # Every candidate snapshot is independent here.  This used to load
         # them serially (snapshot -> historical graph -> jobs for each sid),

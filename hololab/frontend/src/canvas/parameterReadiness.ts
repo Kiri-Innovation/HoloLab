@@ -33,24 +33,6 @@ export function parameterReadiness(report?: EnvironmentReport, specs?: PathParam
   };
 }
 
-/** Combine analysis evidence for display; retain all real capability reports. */
-export function preparationDisplayReports(reports: Record<string, EnvironmentReport>, analysis?: {
-  issues?: {kind: string; node_id?: string; message: string}[];
-  graph: {nodes: {id: string; params?: Record<string, unknown>}[]};
-}) {
-  const result = {...reports};
-  for (const issue of analysis?.issues ?? []) {
-    if (issue.kind !== 'prepare_params' || !issue.node_id) continue;
-    const prior = result[issue.node_id];
-    result[issue.node_id] = {...prior, status: prior?.status ?? 'unknown', issues: [
-      ...(prior?.issues ?? []), {item: 'prepare_params',
-        required: analysis?.graph.nodes.find(node => node.id === issue.node_id)?.params ?? {},
-        actual: issue.message, remedy: '检查该节点的本地路径参数后重新准备'},
-    ]};
-  }
-  return result;
-}
-
 export function preparationBlockerText(prepared: {run_blockers?: string[]; environment_checks?: Record<string, EnvironmentReport>}) {
   return (prepared.run_blockers ?? []).map(blocker => {
     const entry = Object.entries(prepared.environment_checks ?? {}).find(([id]) => blocker.startsWith(`${id} `) || blocker.startsWith(`${id}:`));

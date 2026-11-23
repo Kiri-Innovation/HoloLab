@@ -34,12 +34,12 @@ it("keeps a never-run node neutral even when backend staleness marks its empty s
   });
 });
 
-it("surfaces an invalid persisted parameter as a node error", () => {
+it("keeps legacy parameter errors out of the status badge", () => {
   expect(nodeStatus({
     stale: {kind: "invalid_params", title: "参数不合法：skip 必须 >= 1"},
   })).toMatchObject({
-    tone: "error",
-    conclusion: "参数不合法",
+    tone: "neutral",
+    conclusion: "尚未运行",
   });
 });
 it("warns after a completed run whose own configuration changed", () => {

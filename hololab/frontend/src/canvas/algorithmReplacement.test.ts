@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest';
 import type {CatalogPack, WorkflowGraph} from '../wire';
-import {samePorts, replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replacementParameterChanges, replaceAlgorithm} from './algorithmReplacement';
+import {samePorts, replacementBaselineFromGraph, replacementCandidates, replacementCandidatesFromConnections, replacementChoices, replacementParameterChanges, replaceAlgorithm} from './algorithmReplacement';
 const pack = (name='demo', version='1.0.0') => ({name, version, inputs:{in:{tags:['image'],arrayed:true,dim_labels:['frame']}}, outputs:{out:{tags:['image']}}, params:{count:{type:'int',default:2},mode:{type:'enum',values:['a','b'],default:'a'},old:{type:'string',default:''}},node_ids:[]} as unknown as CatalogPack);
 describe('algorithm replacement',()=>{
   it('compares complete named declarations, not connection compatibility',()=>{
@@ -14,6 +14,29 @@ describe('algorithm replacement',()=>{
   });
   it('sorts same algorithm versions first and excludes incompatible packs',()=>{
     expect(replacementCandidates(pack(),[pack('other'),pack('demo','2.0.0'),pack('demo','10.0.0'),{...pack('bad'),inputs:{}}]).map(p=>p.name+'@'+p.version)).toEqual(['demo@10.0.0','demo@2.0.0','other@1.0.0']);
+  });
+  it('lists loaded rig extraction versions even when the output contract changes', () => {
+    const current = {
+      ...pack('rig-frame-extraction', '0.1.3'),
+      inputs:{capture:{...pack().inputs.in, tags:['rig_capture'], arrayed:false, dim_labels:[]}},
+      outputs:{frames:{...pack().outputs.out, arrayed:true, dim_labels:['cam', 'index']}},
+    };
+    const installed = {...current, name:'kiri/rig-frame-extraction'};
+    const compatible = {...installed, version:'0.1.4'};
+    const changed = {...installed, version:'0.1.5', outputs:{
+      frames:{...current.outputs.frames, tags:['colmap4d-images'], dim_labels:['cam']},
+    }};
+    const other = {...current, name:'other'};
+    const differentNamespace = {...changed, name:'community/rig-frame-extraction'};
+    const catalog = [other, compatible, differentNamespace, current, changed, installed];
+    const candidates = replacementCandidates(current, catalog);
+    expect(replacementChoices(current, catalog, candidates).map(({pack, active, canReplace}) =>
+      [pack.version, active, canReplace])).toEqual([
+      ['0.1.5', false, false], ['0.1.4', false, true], ['0.1.3', true, false], ['0.1.3', false, true],
+    ]);
+    expect(replacementChoices(current, catalog, []).map(({canReplace}) => canReplace)).toEqual([false, false, false]);
+    const node = {id:'rig', position:{x:0,y:0}, data:{pack:current}};
+    expect(replaceAlgorithm(node, changed)).toBe(node);
   });
   it('uses complete graph port declarations when the historical pack is gone',()=>{
     const current = {...pack('demo','1.0.0'), manifest_hash:''};
