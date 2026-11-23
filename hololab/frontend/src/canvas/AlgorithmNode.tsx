@@ -27,6 +27,7 @@ import type {
 } from "../wire";
 import { effectivePortArrayed, effectivePortDimLabels, firstTagColour } from "../tags";
 import { useCanvasContext } from "./CanvasContext";
+import { deviceRoute } from "./WorkflowDevices";
 import type { NodeStaleness } from "./staleness";
 import { OpenArtifactLocationButton } from "./OpenArtifactLocationButton";
 import type { LiveViewerFrame } from "./NodeViewerFrame";
@@ -411,6 +412,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   const {
     pack,
     assigned_node_id,
+    device = "default",
     runtime,
     previews,
     onPreviewToggle,
@@ -420,6 +422,7 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
   } = data as AlgorithmNodeData;
   const {
     computeNodesById,
+    deviceBindings,
     packDisplayName,
     hydrating,
     upstreamBlockerByNode,
@@ -488,11 +491,8 @@ export function AlgorithmNode({ id, data, selected }: NodeProps) {
 
   const assignedComputeNode =
     assigned_node_id ? computeNodesById?.[assigned_node_id] ?? null : null;
-  const assignedLabel = assignedComputeNode
-    ? assignedComputeNode.node_name
-    : assigned_node_id
-      ? assigned_node_id.slice(0, 6)
-      : `设备 ${data.device ?? "default"} · 自动分配`;
+  const route = deviceRoute(device, deviceBindings, assigned_node_id, computeNodesById, readOnly);
+  const assignedLabel = `${device} · ${route.label}`;
   const progressLabel =
     runtime?.progress && runtime.progress.total > 0
       ? `${runtime.progress.current}/${runtime.progress.total}`

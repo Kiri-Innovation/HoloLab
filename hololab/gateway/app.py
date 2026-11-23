@@ -2440,6 +2440,10 @@ def _mount_routes(app: FastAPI) -> None:
     async def reload_workflow_files():
         return await app.state.workflow_files.scan()
 
+    @app.get("/api/workflow-files/config", tags=["workflows"])
+    async def workflow_files_config():
+        return {"workflows_dir": str(app.state.workflow_files.root)}
+
     @app.post("/api/workflow-files", tags=["workflows"])
     async def create_workflow_file(body: dict[str, Any]):
         try:

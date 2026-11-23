@@ -5,7 +5,7 @@ import { PathLibraryBrowser } from "./PathLibraryBrowser";
 
 type Entry = { name: string; path: string; kind: "directory" | "file" | "other" | "unavailable"; symlink: boolean; size: number | null; modified_ts: number | null };
 type Page = { path: string; parent: string; entries: Entry[]; next_offset: number | null };
-type Props = { value: string; onChange: (value: string) => void; nodeId: string | null; name: string; pathKind?: "any" | "file" | "directory" | null; initialDirectory?: string; optional?: boolean };
+type Props = { value: string; onChange: (value: string) => void; nodeId: string | null; name: string; pathKind?: "any" | "file" | "directory" | null; initialDirectory?: string; optional?: boolean; placeholder?: string };
 function split(value: string) {
   const index = value.lastIndexOf("/");
   return index < 0 ? { path: "/", prefix: value } : { path: value.slice(0, index + 1), prefix: value.slice(index + 1) };
@@ -17,7 +17,7 @@ async function list(node: string, path: string, prefix = "", offset = 0, signal?
   if (!response.ok) throw new Error(response.status === 504 ? "This node did not reply. Check its connection and upgrade it for path browsing." : typeof data.detail === "string" ? data.detail : `Cannot browse paths (${response.status})`);
   return data;
 }
-export function PathInput({ value, onChange, nodeId, name, pathKind = "any", initialDirectory = "/", optional = false }: Props) {
+export function PathInput({ value, onChange, nodeId, name, pathKind = "any", initialDirectory = "/", optional = false, placeholder = "Absolute path on the compute node" }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const popup = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -136,7 +136,7 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
   }
   return <div className="hl-path-input">
     <div className="hl-path-field">
-      <input ref={input} aria-label={name} role="combobox" aria-autocomplete="list" aria-expanded={suggest && !!nodeId} aria-controls={suggest ? `${id}-suggestions` : undefined} aria-activedescendant={suggest && suggestions[active] ? `${id}-suggestion-${active}` : undefined} value={optional ? value : value || initialDirectory || "/"} placeholder="Absolute path on the compute node" onFocus={showSuggestions} onChange={e => { onChange(e.target.value); showSuggestions(); }} onBlur={() => setSuggest(false)} onKeyDown={e => {
+      <input ref={input} aria-label={name} role="combobox" aria-autocomplete="list" aria-expanded={suggest && !!nodeId} aria-controls={suggest ? `${id}-suggestions` : undefined} aria-activedescendant={suggest && suggestions[active] ? `${id}-suggestion-${active}` : undefined} value={optional ? value : value || initialDirectory || "/"} title={value || undefined} placeholder={placeholder} onFocus={showSuggestions} onChange={e => { onChange(e.target.value); showSuggestions(); }} onBlur={() => setSuggest(false)} onKeyDown={e => {
         if (e.key === "Escape") { setSuggest(false); e.stopPropagation(); }
         if (suggest && suggestions.length && ["ArrowDown", "ArrowUp", "Tab", "Enter"].includes(e.key)) {
           e.preventDefault(); e.stopPropagation();
@@ -145,14 +145,14 @@ export function PathInput({ value, onChange, nodeId, name, pathKind = "any", ini
           else complete(suggestions[active]);
         }
       }} />
-      <button type="button" aria-label={`Browse paths for ${name}`} disabled={!nodeId} onClick={() => { setSuggest(false); setSource("filesystem"); navigate(value ? split(value).path : initialDirectory || "/"); setOpen(true); }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg></button>
+      <button type="button" aria-label={`Browse paths for ${name}`} disabled={!nodeId} title={nodeId ? undefined : "Select a compute node to browse its files."} onClick={() => { setSuggest(false); setSource("filesystem"); navigate(value ? split(value).path : initialDirectory || "/"); setOpen(true); }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" /></svg></button>
     </div>
     {!nodeId && <small>Select a compute node to browse its files.</small>}
     {suggest && nodeId && createPortal(<div ref={popup} className="hl-path-suggestions" style={rect} onMouseDown={e => e.preventDefault()}>
       <div id={`${id}-suggestions`} role="listbox" aria-label="Path suggestions">{suggestions.map((entry, index) => <div role="option" id={`${id}-suggestion-${index}`} aria-selected={index === active} key={entry.path} onMouseEnter={() => setActive(index)} onClick={() => complete(entry)}>{entry.kind === "directory" ? "▸ " : ""}{entry.name}{entry.kind === "directory" ? "/" : ""}{entry.symlink ? " ↗" : ""}</div>)}</div>
       {hint && <small role="status">{hint}</small>}
     </div>, document.body)}
-    {createPortal(<dialog ref={dialog} className="hl-path-dialog" aria-labelledby={`${id}-title`} onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
+    {typeof document !== "undefined" && createPortal(<dialog ref={dialog} className="hl-path-dialog" aria-labelledby={`${id}-title`} onCancel={() => setOpen(false)} onClose={() => setOpen(false)}>
       <header><h3 id={`${id}-title`}>Browse compute node · {name}</h3><button type="button" aria-label="Close path browser" onClick={() => setOpen(false)}>×</button></header>
       <div className="hl-path-sources" role="group" aria-label="Path source"><button type="button" aria-pressed={source === "filesystem"} onClick={() => setSource("filesystem")}>Compute node</button><button type="button" aria-pressed={source === "library"} onClick={() => setSource("library")}>Library</button></div>
       {open && source === "library" && nodeId ? <PathLibraryBrowser nodeId={nodeId} pathKind={pathKind} onCancel={() => setOpen(false)} onSelect={path => { onChange(path); setOpen(false); input.current?.focus(); }} /> : <>

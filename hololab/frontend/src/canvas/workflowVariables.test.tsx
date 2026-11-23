@@ -3,35 +3,42 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { CatalogPack } from "../wire";
 import { PackParameterField, matchingVariables } from "./PackParameterField";
 import { parameterDifferences, parameterDifferenceText } from "./parameterDifferences";
-import { WorkflowVariables } from "./WorkflowVariables";
+import { WorkflowVariableFields, WorkflowVariables } from "./WorkflowVariables";
 
 const pack = { name: "stg-train", version: "0.4.6", params: { configpath: { type: "path" } } } as unknown as CatalogPack;
 const intPack = { name: "stg-train", version: "0.4.6", params: { steps: { type: "int" } } } as unknown as CatalogPack;
 const floatPack = { name: "video-trim", version: "0.1.0", params: { start_seconds: { type: "float" } } } as unknown as CatalogPack;
 const variables = {dataset_dir: {type: "path" as const}, iterations: {type: "int" as const}, offset: {type: "float" as const}};
 
-describe("workflow variable numeric editors", () => {
+describe("workflow variable editors", () => {
+  it("renders compact current value editors while shared editors remain closed", () => {
+    const html = renderToStaticMarkup(<WorkflowVariables variables={variables} values={{}} browseNodeFor={() => undefined} onChange={() => {}} />);
+    expect(html.match(/class="hl-variable-list-row"/g)).toHaveLength(3);
+    expect(html).toContain('aria-label="编辑变量 dataset_dir"');
+    expect(html).toContain('aria-label="dataset_dir 当前值"');
+    expect(html).not.toContain('aria-label="dataset_dir 默认值"');
+  });
   it("renders integer step=1 and float step=any for both default and local values", () => {
-    const html = renderToStaticMarkup(<WorkflowVariables variables={{
-      iterations: {type: "int", default: 43}, offset: {type: "float", default: 43},
-      dataset_dir: {type: "path", default: "/data"},
-    }} values={{iterations: 12, offset: 43.5, dataset_dir: "/local"}} onChange={() => {}} />);
-    for (const label of ["默认值", "本地值"]) {
-      expect(html).toMatch(new RegExp(`<input aria-label="iterations ${label}" type="number" step="1"`));
-      expect(html).toMatch(new RegExp(`<input aria-label="offset ${label}" type="number" step="any"`));
-      expect(html).toMatch(new RegExp(`<input aria-label="dataset_dir ${label}" type="text"`));
+    for (const [variable, type, step] of [["iterations", "int", "1"], ["offset", "float", "any"]] as const) {
+      const declaration = {type, default: 43};
+      const html = renderToStaticMarkup(<WorkflowVariableFields variable={variable} declaration={declaration}
+        variables={{[variable]: declaration}} values={{[variable]: 43.5}} onChange={() => {}} onFinish={() => {}} />);
+      const current = renderToStaticMarkup(<WorkflowVariables variables={{[variable]: declaration}}
+        values={{[variable]: 43.5}} browseNodeFor={() => undefined} onChange={() => {}} />);
+      expect(html).toMatch(new RegExp(`<input aria-label="${variable} 默认值" type="number" step="${step}"`));
+      expect(current).toMatch(new RegExp(`<input aria-label="${variable} 当前值" type="number" step="${step}"`));
+      expect(html).toContain('value="43"');
+      expect(current).toContain('value="43.5"');
     }
-    expect(html).toContain('aria-label="offset 默认值" type="number" step="any" value="43"');
-    expect(html).toContain('value="43.5"');
-    expect(html).not.toContain('value="43.0"');
-    expect(html).toContain('<option value="float"');
-    expect(html).toContain("浮点数 · float");
   });
   it("preserves numeric-looking strings and explains values retained after a type change", () => {
-    const html = renderToStaticMarkup(<WorkflowVariables variables={{offset: {type: "float", default: "43"}}}
-      values={{offset: "43.5"}} onChange={() => {}} />);
+    const declaration = {type: "float" as const, default: "43"};
+    const html = renderToStaticMarkup(<WorkflowVariableFields variable="offset" declaration={declaration} variables={{offset: declaration}}
+      values={{offset: "43.5"}} onChange={() => {}} onFinish={() => {}} />);
+    const current = renderToStaticMarkup(<WorkflowVariables variables={{offset: declaration}} values={{offset: "43.5"}}
+      browseNodeFor={() => undefined} onChange={() => {}} />);
     expect(html).toContain('value="43"');
-    expect(html).toContain('value="43.5"');
+    expect(current).toContain('value="43.5"');
     expect(html).toContain("请填写浮点数");
   });
 });

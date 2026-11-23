@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
 import type { ComputeNode } from "../wire";
 import { invalidateWorkflowPreparations } from "../api";
+import { WorkflowAddButton, WorkflowPopover } from "./WorkflowPopover";
 
 export interface DeviceBindings {
   workflow_id: string;
@@ -60,26 +61,62 @@ export function logicalDevices(names: string[], bindings: Record<string, string>
   return [...new Set(["default", ...names, ...Object.keys(bindings), ...added])].sort((a, b) => a === "default" ? -1 : b === "default" ? 1 : a.localeCompare(b));
 }
 
+export function deviceRoute(
+  logical: string, bindings: Record<string, string> | undefined, legacy: string | null,
+  nodes: Record<string, ComputeNode>, frozen = false,
+) {
+  const mapped = !frozen && bindings && Object.hasOwn(bindings, logical) ? bindings[logical] : undefined;
+  const nodeId = mapped ?? legacy;
+  if (frozen) {
+    return { nodeId, label: nodeId ? `快照 · ${nodes[nodeId]?.node_name ?? nodeId}` : "快照无设备记录" };
+  }
+  if (!nodeId) return { nodeId, label: "自动分配（运行时确定）" };
+  const node = nodes[nodeId];
+  return { nodeId, label: `${mapped ? "显式绑定" : "旧版指派"} · ${node?.node_name ?? nodeId}${node ? "" : "（离线）"}` };
+}
+
 export function WorkflowDevices({names, nodes, devices, onAdd}: {
   names: string[]; nodes: ComputeNode[]; devices: ReturnType<typeof useWorkflowDevices>; onAdd: (name: string) => void;
 }) {
-  const [name, setName] = useState("");
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const dialogId = useId();
+  const close = useCallback(() => setAnchor(null), []);
   return <section className="hl-workflow-devices" aria-label="设备">
-    <strong>设备</strong>
+    <header className="hl-workflow-devices-heading">
+      <strong>逻辑设备映射</strong>
+      <WorkflowAddButton label="添加设备" expanded={!!anchor} controls={dialogId}
+        onClick={event => setAnchor(anchor ? null : event.currentTarget)} />
+    </header>
     {names.map(logical => <label key={logical} className="hl-device-row">
       <span>{logical}</span>
-      <select aria-label={`设备 ${logical}`} value={devices.state?.bindings[logical] ?? ""}
+      <select aria-label={`设备 ${logical}`} value={devices.state && Object.hasOwn(devices.state.bindings, logical) ? devices.state.bindings[logical] : ""}
         disabled={!devices.state || devices.saving} onChange={event => void devices.bind(logical, event.target.value || null)}>
         <option value="">自动分配（未绑定）</option>
-        {devices.state?.bindings[logical] && !nodes.some(node => node.node_id === devices.state!.bindings[logical]) &&
+        {devices.state && Object.hasOwn(devices.state.bindings, logical) && !nodes.some(node => node.node_id === devices.state!.bindings[logical]) &&
           <option value={devices.state.bindings[logical]}>{devices.state.bindings[logical]} · 离线</option>}
         {nodes.map(node => <option key={node.node_id} value={node.node_id}>{node.node_name} · {node.node_id.slice(0, 6)}</option>)}
       </select>
     </label>)}
-    <form onSubmit={event => { event.preventDefault(); if (name.trim()) { onAdd(name.trim()); setName(""); } }}>
-      <input aria-label="新逻辑设备名称" value={name} onChange={event => setName(event.target.value)} placeholder="逻辑设备名称" />
-      <button type="submit" disabled={!name.trim()}>添加设备</button>
-    </form>
+    {anchor && <WorkflowPopover id={dialogId} name="添加设备" anchor={anchor} closeLabel="关闭添加设备" onClose={close}>
+      {dismiss => <AddWorkflowDevice onAdd={name => { onAdd(name); dismiss(); }} onCancel={dismiss} />}
+    </WorkflowPopover>}
     {devices.error && <p role="alert">{devices.error}</p>}
   </section>;
+}
+
+function AddWorkflowDevice({ onAdd, onCancel }: { onAdd: (name: string) => void; onCancel: () => void }) {
+  const [name, setName] = useState("");
+  return <form className="hl-workflow-add-form" onSubmit={event => {
+    event.preventDefault();
+    if (name.trim()) onAdd(name.trim());
+  }}>
+    <label className="hl-variable-row"><span>名称</span>
+      <input aria-label="新逻辑设备名称" value={name} onChange={event => setName(event.target.value)}
+        placeholder="逻辑设备名称" autoFocus />
+    </label>
+    <div className="hl-evidence-actions">
+      <button className="hl-evidence-primary" type="submit" disabled={!name.trim()}>添加设备</button>
+      <button type="button" onClick={onCancel}>取消</button>
+    </div>
+  </form>;
 }

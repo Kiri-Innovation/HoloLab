@@ -716,6 +716,5 @@ a:hover { text-decoration: underline; }
 
 .hl-workflow-devices { display: grid; gap: 10px; padding: 14px; border-bottom: 1px solid var(--border); }
 .hl-device-row { display: grid; grid-template-columns: minmax(60px, 1fr) minmax(0, 2fr); align-items: center; gap: 8px; }
-.hl-device-row select, .hl-workflow-devices input { min-width: 0; width: 100%; }
-.hl-workflow-devices form { display: flex; gap: 8px; }
+.hl-device-row select { min-width: 0; width: 100%; }
 .hl-compute-assignment output { overflow-wrap: anywhere; color: var(--text-muted); }

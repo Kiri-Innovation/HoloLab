@@ -21,6 +21,7 @@ from hololab.paths import (
     former_default_installed_packs_dir,
     former_default_workspace_root,
     node_data_dir,
+    user_data_dir,
 )
 
 
@@ -167,7 +168,7 @@ class NodeConfig(BaseModel):
             "when neither field is set on load."
         ),
     )
-    workflows_dir: Path = Path("/cloud/cloud-ssd1/Kiri4DGS")
+    workflows_dir: Path = Field(default_factory=lambda: user_data_dir() / "workflows")
 
     @field_validator("workflows_dir")
     @classmethod

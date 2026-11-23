@@ -297,6 +297,7 @@ export function SnapshotCanvas({
           pack,
           assembly: gn.assembly,
           arrayed_toggle: gn.arrayed_toggle,
+          device: gn.device,
           assigned_node_id: gn.assigned_node_id,
           params: gn.params,
           port_values: gn.port_values,

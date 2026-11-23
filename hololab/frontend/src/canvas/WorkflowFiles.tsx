@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { PathInput } from "./PathInput";
 import { CONTROL_STYLE, PRIMARY_CONTROL_STYLE } from "../ui/controlStyles";
 
@@ -120,10 +120,28 @@ export function WorkflowFilePicker({
   onOpen: (id: string) => void;
   onClose: () => void;
 }) {
-  const [path, setPath] = useState("/cloud/cloud-ssd1/Kiri4DGS");
+  const [path, setPath] = useState("");
+  const pathEdited = useRef(false);
   const [name, setName] = useState("untitled");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (mode !== "create") return;
+    const controller = new AbortController();
+    fetch("/api/workflow-files/config", { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw Error("Config unavailable");
+        return response.json();
+      })
+      .then((config) => {
+        if (!controller.signal.aborted && !pathEdited.current && typeof config.workflows_dir === "string") {
+          setPath(config.workflows_dir);
+        }
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [mode]);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -131,6 +149,8 @@ export function WorkflowFilePicker({
     setBusy(true);
     setError("");
     try {
+      if (mode === "create" && !path.trim())
+        throw Error("\u8bf7\u9009\u62e9\u76ee\u5f55");
       if (mode === "open" && !path.endsWith(".workflow"))
         throw Error("请选择 .workflow 文件");
       const result = await workflowFileRequest(
@@ -160,8 +180,9 @@ export function WorkflowFilePicker({
             <PathInput
               nodeId="gateway"
               name="workflow-path"
+              optional
               value={path}
-              onChange={setPath}
+              onChange={(value) => { pathEdited.current = true; setPath(value); }}
               pathKind={mode === "create" ? "directory" : "file"}
             />
           </label>

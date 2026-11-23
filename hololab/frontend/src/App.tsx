@@ -1,6 +1,6 @@
 import { listWorkflowRuns } from "./api";
 import { capturePersistedInterface, readInterface, recoverHistoricalInterface } from "./canvas/interfaceSnapshot";
-import { WorkflowDevices, useWorkflowDevices, logicalDevices } from "./canvas/WorkflowDevices";
+import { WorkflowDevices, useWorkflowDevices, logicalDevices, deviceRoute } from "./canvas/WorkflowDevices";
 import { PackManager } from "./packs/PackManager";
 import { WorkflowVariables } from "./canvas/WorkflowVariables";
 import type { VariableDeclarations } from "./wire";
@@ -1392,6 +1392,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       workflow_id: workflowId,
       workflow_name: workflowName || "untitled",
       computeNodesById,
+      deviceBindings: workflowDevices.state?.bindings,
       packDisplayName,
       hydrating,
       trackpadNavigation,
@@ -1407,7 +1408,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
       viewer_view_managed: viewerViewManaged,
       setViewerDefault: setWorkflowViewerDefault,
     }),
-    [workflowId, workflowName, computeNodesById, packDisplayName, hydrating, trackpadNavigation, viewingSnapshot?.snapshot_id, latestSnapshotId, upstreamBlockerByNode, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
+    [workflowId, workflowName, computeNodesById, workflowDevices.state?.bindings, packDisplayName, hydrating, trackpadNavigation, viewingSnapshot?.snapshot_id, latestSnapshotId, upstreamBlockerByNode, pinnedParams, variables, updateParameterBinding, updateNodeParams, updateInlineValue, inspectInput, viewerView, viewerViewLoaded, viewerViewManaged, setWorkflowViewerDefault],
   );
 
   // Push job runtime + resolved previews + previewOpen into each node's
@@ -3274,11 +3275,43 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     const data = algorithmNodeData(n.data);
     return data && !isConstantName(data.pack.name) ? [data.device ?? "default"] : [];
   }), workflowDevices.state?.bindings, addedDevices);
+  const browseNodeForVariable = (variable: string) => {
+    const bindings = workflowDevices.state?.bindings;
+    // Wait for the workflow's bindings before treating a device as automatic.
+    if (workflowId && !bindings) return undefined;
+    const consumers = nodes.flatMap(node => {
+      const data = algorithmNodeData(node.data);
+      return data && Object.values(data.param_bindings ?? {}).includes(variable) ? [data] : [];
+    });
+    if (!consumers.length) {
+      const target = bindings?.default;
+      return target ? computeNodesById[target] : computeNodes.length === 1 ? computeNodes[0] : undefined;
+    }
+
+    const targets = new Set<string>();
+    for (const data of consumers) {
+      const target = bindings?.[data.device ?? "default"] ?? data.assigned_node_id;
+      if (target) {
+        if (!computeNodesById[target]) return undefined;
+        targets.add(target);
+      } else {
+        // Analysis can pick among equivalent nodes by load. For browsing, each
+        // consumer needs a unique target so the path has a stable filesystem.
+        const pack = catalogByKey.get(`${data.pack.name}@${data.pack.version}`);
+        const candidates = computeNodes.filter(node => pack?.node_ids.includes(node.node_id));
+        if (candidates.length !== 1) return undefined;
+        targets.add(candidates[0].node_id);
+      }
+    }
+    return targets.size === 1 ? computeNodesById[[...targets][0]] : undefined;
+  };
+  const workflowVariablesSlot = !viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues}
+    browseNodeFor={browseNodeForVariable} onChange={onWorkflowVariablesChange} />;
   const workflowSlot = (
     <div className="hl-workflow-sidebar">
       {!viewingSnapshot && <WorkflowDevices key={workflowId} names={deviceNames} nodes={computeNodes} devices={workflowDevices}
         onAdd={name => setAddedDevices(current => [...current, name])} />}
-      {!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues} onChange={onWorkflowVariablesChange} />}
+      {workflowVariablesSlot}
       <div className="hl-workflow-checks"><EnvironmentChecks checks={capabilityChecks} /></div>
       <section className="hl-workflow-analysis" role="status" data-analysis-state={executionAnalysis.status}>
         <strong>执行分析</strong>
@@ -3317,10 +3350,12 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
     />
   );
   const selectedAlgorithmData = selectedNode ? algorithmNodeData(selectedNode.data) : null;
-  const actualDevice = selectedNode && selectedAlgorithmData
-    ? (executionAnalysis.isCurrent ? executionAnalysis.data?.graph.nodes.find(n => n.id === selectedNode.id)?.assigned_node_id : null)
-      ?? workflowDevices.state?.bindings[selectedAlgorithmData.device ?? "default"] ?? selectedAlgorithmData.assigned_node_id
-    : null;
+  const selectedDeviceRoute = selectedAlgorithmData && deviceRoute(
+    selectedAlgorithmData.device ?? "default", workflowDevices.state?.bindings, selectedAlgorithmData.assigned_node_id, computeNodesById,
+  );
+  const analysedDevice = executionAnalysis.isCurrent
+    ? executionAnalysis.data?.graph.nodes.find(n => n.id === selectedNode?.id)?.assigned_node_id : null;
+  const actualDevice = selectedDeviceRoute?.nodeId ?? analysedDevice ?? null;
   const assignmentSlot = !viewingSnapshot && selectedAlgorithmData ? (
     <div className="hl-compute-assignment">
       <label htmlFor="hl-logical-device">逻辑设备</label>
@@ -3329,7 +3364,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
         {deviceNames.map(name => <option key={name} value={name}>{name}</option>)}
       </select>
       <span>实际设备</span>
-      <output aria-label="实际设备">{actualDevice ? `${computeNodesById[actualDevice]?.node_name ?? actualDevice} · ${actualDevice}` : "自动分配（运行时确定）"}</output>
+      <output aria-label="实际设备">{selectedDeviceRoute?.label}</output>
     </div>
   ) : null;
   const nodesSlot = <ComputeNodesPanel nodes={computeNodes} metricsByNode={metricsByNode} />;
@@ -3449,7 +3484,7 @@ function AppInner({ initialWorkflowId, onExitToGallery }: AppInnerProps) {
           nodes={nodesSlot}
           runs={runsSlot}
           jobs={jobsSlot}
-          inspect={<div className="hl-mobile-inspector">{!viewingSnapshot && <WorkflowVariables variables={variables} values={variableValues} onChange={onWorkflowVariablesChange} />}{inspectorSlot}</div>}
+          inspect={<div className="hl-mobile-inspector">{workflowVariablesSlot}{inspectorSlot}</div>}
           selectionId={mobileSelectionId}
           latestSnapshotId={latestSnapshotId}
         />

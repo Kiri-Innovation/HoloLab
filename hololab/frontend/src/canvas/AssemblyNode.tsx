@@ -1,4 +1,6 @@
 import { NodeCardHeader } from "./NodeCardHeader";
+import { useCanvasContext } from "./CanvasContext";
+import { deviceRoute } from "./WorkflowDevices";
 import { nodeStatus } from "./nodeStatus";
 import { ConstantNode } from "./ConstantNode";
 import { isConstantName } from "./constants";
@@ -23,6 +25,9 @@ export function ExecutableNode(props: NodeProps) {
 
 export function AssemblyNode({ id, data }: NodeProps) {
   const d = data as AlgorithmNodeData & { assembly?: AssemblyConfig; readOnly?: boolean };
+  const { computeNodesById, deviceBindings } = useCanvasContext();
+  const device = d.device ?? "default";
+  const route = deviceRoute(device, deviceBindings, d.assigned_node_id, computeNodesById, d.readOnly);
   const [runPending, setRunPending] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const runLock = useRef(false);
@@ -103,7 +108,7 @@ export function AssemblyNode({ id, data }: NodeProps) {
       width: 320, background: "var(--surface-2)", color: "var(--text-body)",
       border: "1px solid var(--border)", borderRadius: 8,
     }}>
-      <NodeCardHeader id={id} name="array-assemble" version={d.pack?.version ?? "1"} subtitle="system"
+      <NodeCardHeader id={id} name="array-assemble" version={d.pack?.version ?? "1"} subtitle={`${device} · ${route.label}`}
         state={d.runtime?.state} status={nodeStatus({ state: d.runtime?.state, stale: d.staleness, failReason: d.runtime?.fail_reason, readOnly: d.readOnly })}
         actions={!d.readOnly && <NodeRunControl id={id} pending={runPending} state={d.runtime?.state}
           jobId={d.runtime?.job_id} stale={!!d.staleness} onRun={run} />} />

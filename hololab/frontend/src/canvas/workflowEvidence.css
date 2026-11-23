@@ -19,13 +19,30 @@
 button.hl-evidence-primary { background: var(--text); border-color: var(--text); color: var(--text-on-dark); }
 button.hl-evidence-primary:hover:not(:disabled) { background: var(--text); color: var(--text-on-dark); border-color: var(--text-muted); }
 button.hl-evidence-delete { background: var(--surface-alt); color: var(--text-muted); border-color: var(--border-subtle); }
-.hl-variable-card { margin-block: var(--space-2); padding-block: var(--space-2); border-top: 1px solid var(--border-subtle); }
-.hl-variable-card header { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); }
-.hl-variable-card header strong { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.hl-variable-list { list-style: none; margin: 0 0 var(--space-2); padding: 0; }
+.hl-variable-list-row { display: grid; grid-template-columns: min(32%, 10em) 3em minmax(0, 1fr) auto; align-items: center; gap: var(--space-1); min-width: 0; border-top: 1px solid var(--border-subtle); padding-block: var(--space-1); }
+.hl-variable-list-row strong, .hl-variable-popover header strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.hl-variable-list-row button { width: var(--control-h-sm); height: var(--control-h-sm); padding: 0; }
+.hl-variable-inline-value { min-width: 0; }
+.hl-variable-inline-value input { box-sizing: border-box; min-width: 0; width: 100%; height: var(--control-h-sm); font-size: var(--fs-xs); text-overflow: ellipsis; }
+.hl-variable-inline-value input:focus { text-overflow: clip; }
+.hl-variable-inline-value[data-value-source="default"] input:not(:focus) { color: var(--text-muted); }
+.hl-variable-inline-value .hl-path-field { gap: var(--space-1); }
+.hl-variable-inline-value .hl-path-field button { flex: 0 0 var(--control-h-sm); }
+.hl-variable-inline-value .hl-path-input > small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.hl-variable-popover { position: fixed; z-index: 1050; box-sizing: border-box; width: min(360px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); overflow: auto; border: 1px solid var(--border-strong); border-radius: var(--radius-md); box-shadow: var(--shadow-2); }
+.hl-variable-popover header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); margin-bottom: var(--space-2); }
+.hl-variable-popover > button, .hl-variable-popover > form { margin-bottom: var(--space-2); }
 .hl-variable-row { display: grid; grid-template-columns: minmax(0, 32%) minmax(0, 1fr); align-items: center; gap: var(--space-2); margin-bottom: var(--space-1); }
 .hl-variable-row > span { color: var(--text-muted); }
-.hl-variable-row input, .hl-variable-row select, .hl-variable-add input, .hl-variable-add select { min-width: 0; width: 100%; height: var(--control-h-sm); font-size: var(--fs-xs) !important; background: var(--surface-alt); border-color: var(--border-subtle); }
-.hl-variable-add { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: var(--space-1); padding-top: var(--space-2); border-top: 1px solid var(--border-subtle); }
+.hl-variable-row input, .hl-variable-row select { min-width: 0; width: 100%; height: var(--control-h-sm); font-size: var(--fs-xs) !important; background: var(--surface-alt); border-color: var(--border-subtle); }
+.hl-workflow-variables-panel { position: relative; }
+.hl-workflow-variables > summary { box-sizing: border-box; min-height: var(--control-h-sm); padding-inline-end: calc(var(--control-h-sm) + var(--space-2)); }
+.hl-workflow-variables-panel > .hl-workflow-add-button { position: absolute; inset-block-start: var(--space-3); inset-inline-end: var(--space-3); }
+.hl-workflow-devices-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+button.hl-workflow-add-button { display: grid; place-items: center; flex-shrink: 0; box-sizing: border-box; width: var(--control-h-sm); height: var(--control-h-sm); min-width: 0; padding: 0; font-size: var(--fs-md); line-height: 1; }
+.hl-workflow-add-form { display: grid; gap: var(--space-2); }
+.hl-workflow-add-form .hl-evidence-actions { justify-content: flex-end; }
 .hl-variable-parameter { min-width: 0; }
 .hl-variable-parameter-control { display: grid; grid-template-columns: var(--control-h-sm) minmax(0, 1fr); align-items: start; gap: var(--space-1); min-width: 0; }
 .hl-variable-parameter-control > div, .hl-variable-parameter-control select { min-width: 0; width: 100%; }

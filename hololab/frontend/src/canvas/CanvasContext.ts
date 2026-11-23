@@ -31,6 +31,7 @@ export interface CanvasContextValue {
   // drawer's "Open in Cocoder" button to resolve
   // ``flops_executor_id`` at render time.
   computeNodesById: Record<string, ComputeNode>;
+  deviceBindings?: Record<string, string>;
   /** Pack label resolved once from the names present on this canvas. */
   packDisplayName?: (name: string) => string;
   // True while the initial cold-load hydration (runs list → snapshot

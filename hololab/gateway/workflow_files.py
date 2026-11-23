@@ -340,9 +340,11 @@ class WorkflowFiles:
         ):
             raise ValueError("name must be a nonempty filename component")
         parent = parent.resolve()
-        if not parent.is_dir():
-            raise ValueError(f"parent directory does not exist: {parent}")
         async with self.lock:
+            if not parent.is_dir() and parent == self.root.resolve():
+                parent.mkdir(parents=True, exist_ok=True)
+            if not parent.is_dir():
+                raise ValueError(f"parent directory does not exist: {parent}")
             if wid and any(entry[0] == wid for entry in await self.entries()):
                 raise ValueError(f"workflow id already registered: {wid}")
             path = parent / f"{name}.workflow"

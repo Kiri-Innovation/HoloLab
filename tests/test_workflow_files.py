@@ -421,3 +421,76 @@ def test_move_workflow_file_updates_registry_and_broadcasts(tmp_path):
         )
         assert missing.status_code == 409
         assert "source workflow file is missing" in missing.json()["detail"]
+
+
+def test_workflow_files_config_reports_active_gateway_root(tmp_path):
+    from fastapi.testclient import TestClient
+    from hololab.gateway.app import create_app
+
+    root = tmp_path / "custom-workflows"
+    root.mkdir()
+    other = tmp_path / "changed-workflows"
+    other.mkdir()
+    with TestClient(create_app(db_path=tmp_path / "db.sqlite", workflows_dir=root)) as client:
+        assert client.get("/api/workflow-files/config").json() == {"workflows_dir": str(root)}
+        client.portal.call(client.app.state.workflow_files.sync_root, other)
+        assert client.get("/api/workflow-files/config").json() == {"workflows_dir": str(other)}
+
+
+def test_workflow_default_path_resolution_is_read_only(tmp_path, monkeypatch):
+    from hololab.node.config import load_node_config
+
+    home = tmp_path / "override"
+    monkeypatch.setenv("HOLOLAB_HOME", str(home))
+    config = tmp_path / "config.yaml"
+    config.write_text("{}\n")
+    assert load_node_config(config).workflows_dir == home / "workflows"
+    assert not (home / "workflows").exists()
+    explicit = tmp_path / "explicit"
+    config.write_text(f"workflows_dir: {explicit}\n")
+    assert load_node_config(config).workflows_dir == explicit
+    assert not explicit.exists()
+    monkeypatch.delenv("HOLOLAB_HOME")
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "xdg"))
+    config.write_text("{}\n")
+    assert load_node_config(config).workflows_dir == tmp_path / "xdg" / "hololab" / "workflows"
+    assert not (tmp_path / "xdg" / "hololab" / "workflows").exists()
+    monkeypatch.delenv("XDG_DATA_HOME")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    assert load_node_config(config).workflows_dir == tmp_path / "home" / ".hololab" / "workflows"
+
+
+def test_missing_workflow_root_created_only_on_create(tmp_path, monkeypatch):
+    from fastapi.testclient import TestClient
+    from hololab.gateway.app import create_app
+
+    home = tmp_path / "data"
+    monkeypatch.setenv("HOLOLAB_HOME", str(home))
+    config = tmp_path / "config.yaml"
+    config.write_text("{}\n")
+    root = home / "workflows"
+    with TestClient(create_app(db_path=tmp_path / "db.sqlite", workflow_config_path=config)) as client:
+        assert client.get("/api/workflow-files/config").json() == {"workflows_dir": str(root)}
+        assert not root.exists()
+        other = tmp_path / "other-missing"
+        assert client.post("/api/workflow-files", json={"parent_dir": str(other), "name": "test"}).status_code == 422
+        assert not other.exists()
+        response = client.post("/api/workflow-files", json={"parent_dir": str(root), "name": "test"})
+        assert response.status_code == 200, response.text
+        assert Path(response.json()["path"]) == root / "test.workflow"
+        assert read_document(root / "test.workflow").name == "test"
+
+
+def test_explicit_missing_root_create(tmp_path):
+    from fastapi.testclient import TestClient
+    from hololab.gateway.app import create_app
+
+    root = tmp_path / "custom" / "workflows"
+    config = tmp_path / "config.yaml"
+    config.write_text(f"workflows_dir: {root}\n")
+    with TestClient(create_app(db_path=tmp_path / "db.sqlite", workflow_config_path=config)) as client:
+        assert client.get("/api/workflow-files/config").json()["workflows_dir"] == str(root)
+        assert not root.exists()
+        response = client.post("/api/workflow-files", json={"parent_dir": str(root), "name": "custom"})
+        assert response.status_code == 200, response.text
+        assert Path(response.json()["path"]) == root / "custom.workflow"
