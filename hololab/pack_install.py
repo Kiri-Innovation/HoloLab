@@ -18,10 +18,12 @@ from hololab.pack_registry import (
     HashMismatch,
     RegistryError,
     find_release,
+    find_type_release,
     safe_relative,
     source_url,
 )
 from hololab.package_identity import parse_spec, same_package
+from hololab.type_pack import TYPE_LOCK, check_type_version, codec_file
 
 RECEIPT = ".hololab-install.json"
 
@@ -173,7 +175,7 @@ def publication_info(manifest: Path):
     }
 
 
-def extract_verified(archive: Path, content: Path, declared_size: int):
+def extract_verified(archive: Path, content: Path, declared_size: int, *, allow_links=True):
     """Never write through links; reject traversal, duplicate paths and special files."""
     with tarfile.open(archive, "r:gz") as tar:
         members = tar.getmembers()
@@ -182,8 +184,10 @@ def extract_verified(archive: Path, content: Path, declared_size: int):
         names = set()
         for member in members:
             relative = safe_relative(member.name)
-            if relative.as_posix() in names or not (
-                member.isfile() or member.issym() or member.isdir()
+            if (
+                relative.as_posix() in names
+                or (not allow_links and member.issparse())
+                or not (member.isfile() or (allow_links and member.issym()) or member.isdir())
             ):
                 raise RegistryError("duplicate or unsupported archive entry")
             names.add(relative.as_posix())
@@ -201,6 +205,84 @@ def extract_verified(archive: Path, content: Path, declared_size: int):
                 target.chmod(0o755 if member.mode & 0o111 else 0o644)
 
 
+def stage_release(staging, source, release, *, type_pack=False):
+    archive = staging / "archive.tar.gz"
+    size = 0
+    with (
+        urlopen(urljoin(source_url(source), release.archive), timeout=30) as inp,
+        archive.open("wb") as out,
+    ):
+        while block := inp.read(1024 * 1024):
+            size += len(block)
+            if size > release.archive_bytes:
+                raise HashMismatch("包体字节数不匹配, 必须停止")
+            out.write(block)
+    if size != release.archive_bytes or file_hash(archive) != release.archive_sha256:
+        raise HashMismatch("包体传输 SHA-256 不匹配, 必须停止")
+    content = staging / "content"
+    content.mkdir()
+    extract_verified(archive, content, release.unpacked_bytes, allow_links=not type_pack)
+    manifest = content / safe_relative(release.manifest)
+    scope = Scope.load(manifest, type_pack=type_pack)
+    if type_pack:
+        matches = (scope.manifest.name, scope.manifest.version) == (
+            release.typename,
+            release.version,
+        )
+        codec_file(manifest.parent, scope.manifest.codec)
+    else:
+        matches = same_package(
+            scope.manifest.name, scope.manifest.version, release.name, release.version
+        )
+    if not matches or not scope.root.is_relative_to(content):
+        raise HashMismatch("包体 manifest 身份或 root 与索引不一致, 必须停止")
+    with tempfile.TemporaryDirectory(prefix="hololab-install-baseline-") as baseline:
+        record = capture(
+            manifest, Baselines(Path(baseline)), refresh_cold=True, type_pack=type_pack
+        )
+    if record["sha256"] != release.code_sha256:
+        raise HashMismatch(
+            f"找到但哈希不匹配, 必须停止: 索引={release.code_sha256}; 包体={record['sha256']}"
+        )
+    archive.unlink()
+    return scope, record
+
+
+def stage_types(staging, source, refs):
+    # Resolve from the algorithm's authority. A missing version cannot be
+    # silently supplied by another source with a different owner or bytes.
+    locked = {}
+    modules = set()
+    files = {}
+    versions = {}
+    for ref in refs.values():
+        check_type_version(versions, ref)
+    pending = sorted(set(refs.values()), reverse=True)
+    while pending:
+        ref = pending.pop()
+        check_type_version(versions, ref)
+        if ref in locked:
+            continue
+        release = find_type_release(ref, source)
+        directory = staging / ".types" / ref
+        directory.mkdir(parents=True)
+        scope, _ = stage_release(directory, source, release, type_pack=True)
+        module = scope.manifest.codec.split(":")[0]
+        if module in modules:
+            raise RegistryError(f"conflicting Type codec module: {module}")
+        modules.add(module)
+        locked[ref] = release.model_dump()
+        files[ref] = {
+            "manifest_sha256": file_hash(scope.manifest_path),
+            "codec_sha256": file_hash(codec_file(scope.manifest_path.parent, scope.manifest.codec)),
+        }
+        pending.extend(reversed(scope.manifest.dependencies))
+    atomic_json(
+        staging / TYPE_LOCK,
+        {"format": 1, "source": source, "ports": refs, "releases": locked, "files": files},
+    )
+
+
 def install(spec: str, sources: list[str], destination: Path, pack_dirs: list[Path], expected=None):
     from hololab.bundled import is_builtin, protect_destination
 
@@ -212,6 +294,16 @@ def install(spec: str, sources: list[str], destination: Path, pack_dirs: list[Pa
     with authority_lock(destination):
         local = inspect_local(spec, [*pack_dirs, destination], expected)
         if local:
+            manifest = Path(local["manifest"])
+            typed = Scope.load(manifest).manifest.exec.typed
+            if typed and typed.type_packs:
+                from hololab.locked_codecs import locked_type_files
+
+                if receipt_for(manifest) is None:
+                    raise RegistryError(
+                        f"Type Pack algorithm is shadowed by an unlocked source: {manifest}"
+                    )
+                locked_type_files(manifest, typed.type_packs)
             return local
         source, release = find_release(spec, sources, expected)
         if release.yanked:
@@ -230,40 +322,15 @@ def install(spec: str, sources: list[str], destination: Path, pack_dirs: list[Pa
         target.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(prefix=".install-", dir=target.parent) as temporary:
             staging = Path(temporary)
-            archive = staging / "archive.tar.gz"
-            size = 0
-            with (
-                urlopen(urljoin(source_url(source), release.archive), timeout=30) as inp,
-                archive.open("wb") as out,
-            ):
-                while block := inp.read(1024 * 1024):
-                    size += len(block)
-                    if size > release.archive_bytes:
-                        raise HashMismatch("包体字节数不匹配, 必须停止")
-                    out.write(block)
-            if size != release.archive_bytes or file_hash(archive) != release.archive_sha256:
-                raise HashMismatch("包体传输 SHA-256 不匹配, 必须停止")
-            content = staging / "content"
-            content.mkdir()
-            extract_verified(archive, content, release.unpacked_bytes)
-            manifest = content / safe_relative(release.manifest)
-            scope = Scope.load(manifest)
-            if not scope.root.is_relative_to(content) or not same_package(
-                scope.manifest.name, scope.manifest.version, release.name, release.version
-            ):
-                raise HashMismatch("包体 manifest 身份或 root 与索引不一致, 必须停止")
-            with tempfile.TemporaryDirectory(prefix="hololab-install-baseline-") as baseline:
-                record = capture(manifest, Baselines(Path(baseline)), refresh_cold=True)
-            if record["sha256"] != release.code_sha256:
-                raise HashMismatch(
-                    f"找到但哈希不匹配, 必须停止: 索引={release.code_sha256}; 包体={record['sha256']}"
-                )
-            record["path"] = str(target / "content" / scope.root.relative_to(content))
+            scope, record = stage_release(staging, source, release)
+            typed = scope.manifest.exec.typed
+            if typed and typed.type_packs:
+                stage_types(staging, source, typed.type_packs)
+            record["path"] = str(target / "content" / scope.root.relative_to(staging / "content"))
             atomic_json(
                 staging / RECEIPT,
                 {"source": source, "release": release.model_dump(), "identity": record},
             )
-            archive.unlink()
             os.rename(staging, target)
         return {
             "state": "found",

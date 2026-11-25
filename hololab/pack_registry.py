@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.parse import unquote, urljoin, urlparse
 from urllib.request import urlopen
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from hololab.package_identity import canonical_name, parse_spec, validate_identity
+from hololab.type_pack import TYPE_NAME, TYPE_REF, TYPE_VERSION
 
 # The public registry is always the primary source.  ``NodeConfig.pack_sources``
 # contains optional additional registries; future private deployments that need
@@ -30,9 +31,8 @@ class SourceUnavailable(RegistryError):
     pass
 
 
-class Release(BaseModel):
+class ArchiveRelease(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    name: str
     version: str
     code_sha256: str
     archive_sha256: str
@@ -47,16 +47,6 @@ class Release(BaseModel):
     evidence: dict
     published_at: str
     publisher: str
-    yanked: bool = False
-    yank_reason: str | None = None
-    yank_updated_at: str | None = None
-
-    @model_validator(mode="after")
-    def identity(self):
-        validate_identity(self.name, self.version)
-        if self.name != canonical_name(self.name) or self.version.endswith("+"):
-            raise ValueError("registry entries require canonical names and released versions")
-        return self
 
     @field_validator("code_sha256", "archive_sha256")
     @classmethod
@@ -70,6 +60,55 @@ class Release(BaseModel):
     def relative(cls, value):
         safe_relative(value)
         return value
+
+
+class Release(ArchiveRelease):
+    name: str
+    yanked: bool = False
+    yank_reason: str | None = None
+    yank_updated_at: str | None = None
+
+    @model_validator(mode="after")
+    def identity(self):
+        validate_identity(self.name, self.version)
+        if self.name != canonical_name(self.name) or self.version.endswith("+"):
+            raise ValueError("registry entries require canonical names and released versions")
+        return self
+
+
+class TypeRelease(ArchiveRelease):
+    typename: str = Field(pattern=rf"^{TYPE_NAME}$")
+    publisher_scope: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,62}$")
+    version: str = Field(pattern=rf"^{TYPE_VERSION}$", max_length=64)
+
+    @model_validator(mode="after")
+    def scope(self):
+        if self.publisher_scope == "builtin":
+            raise ValueError("builtin Type Packs cannot be published")
+        return self
+
+
+class TypeIndex(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    format: int
+    authority: str
+    typename: str
+    publisher_scope: str
+    releases: dict[str, TypeRelease]
+
+    @model_validator(mode="after")
+    def keys(self):
+        if self.format != 1:
+            raise ValueError("unsupported Type registry format")
+        for key, release in self.releases.items():
+            if (
+                release.typename != self.typename
+                or release.publisher_scope != self.publisher_scope
+                or key != f"{self.typename}@{release.version}"
+            ):
+                raise ValueError("Type registry key or ownership mismatch")
+        return self
 
 
 class Index(BaseModel):
@@ -173,3 +212,38 @@ def find_release(spec: str, sources: list[str], expected: str | None = None):
     if errors:
         raise SourceUnavailable("; ".join(errors))
     raise RegistryError(f"找不到: {key}")
+
+
+def read_type_index(source: str, typename: str, *, timeout: float = 15) -> TypeIndex | None:
+    if not re.fullmatch(TYPE_NAME, typename):
+        raise RegistryError(f"invalid Type name: {typename!r}")
+    root = source_url(source)
+    path = f"types/{typename}/"
+    if urlparse(root).scheme == "file":
+        path += "index.json"
+        if not (local_source(root) / path).is_file():
+            return None
+    try:
+        with urlopen(urljoin(root, path), timeout=timeout) as response:
+            raw = response.read(16 * 1024 * 1024 + 1)
+    except HTTPError as exc:
+        if exc.code == 404:
+            return None
+        raise SourceUnavailable(f"Type registry unavailable: {source}: {exc}") from exc
+    except (OSError, URLError) as exc:
+        raise SourceUnavailable(f"Type registry unavailable: {source}: {exc}") from exc
+    if len(raw) > 16 * 1024 * 1024:
+        raise RegistryError("Type registry index exceeds 16 MiB")
+    index = TypeIndex.model_validate_json(raw)
+    if index.typename != typename:
+        raise RegistryError("Type registry returned a different typename")
+    return index
+
+
+def find_type_release(ref: str, source: str) -> TypeRelease:
+    if not re.fullmatch(TYPE_REF, ref):
+        raise RegistryError(f"expected exact typename@version: {ref!r}")
+    index = read_type_index(source, ref.split("@")[0])
+    if index is None or ref not in index.releases:
+        raise RegistryError(f"missing Type Pack dependency {ref} in {source}")
+    return index.releases[ref]

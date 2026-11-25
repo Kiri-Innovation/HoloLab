@@ -35,7 +35,6 @@ import yaml
 
 from hololab import __version__
 from hololab.artifact_migration_cli import artifacts_app
-from hololab.gateway.app import create_app
 from hololab.logging import configure as configure_logging
 from hololab.logging import get_logger
 from hololab.manifest import load_manifest
@@ -302,6 +301,8 @@ def start_gateway(
             access_log=False,
         )
     else:
+        from hololab.gateway.app import create_app
+
         uvicorn.run(
             create_app(),
             host=host,
@@ -450,6 +451,8 @@ async def _run_all_in_one_async(
     except ServiceAlreadyRunning as exc:
         typer.echo(f"✗ {exc}; use `hololab stop` first", err=True)
         raise typer.Exit(2) from exc
+
+    from hololab.gateway.app import create_app
 
     gateway_app = create_app(workflow_config_path=node_config_path)
     config = uvicorn.Config(
@@ -753,6 +756,9 @@ def pack_publish(
     source: str = typer.Option(..., help="Writable file:// registry directory"),
     publisher: str = typer.Option(..., help="Publisher attribution, not a cryptographic signature"),
     authority: str = "hololab-central",
+    publisher_scope: str | None = typer.Option(
+        None, help="Publish a Type pack under this authorized scope"
+    ),
     publish_to: str | None = typer.Option(
         None, help="Remote registry base URL, e.g. https://packs.xenotech.studio"
     ),
@@ -779,10 +785,14 @@ def pack_publish(
             authority=authority,
             publish_to=publish_to,
             token=token,
+            publisher_scope=publisher_scope,
         )
     except (ValueError, OSError) as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
+    if publisher_scope is not None:
+        typer.echo(json.dumps(release.model_dump(), ensure_ascii=False, indent=2))
+        return
     from hololab.paths import gateway_sqlite_path
     from hololab.publication_notes import annotate_path
 

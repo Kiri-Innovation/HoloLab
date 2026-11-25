@@ -13,11 +13,19 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator, model_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from hololab.manifest.array_views import TypeCapability, reject_port_capabilities
 from hololab.manifest.requirements import Requirements
 from hololab.package_identity import validate_name, validate_version
+from hololab.type_pack import TypeRef, check_type_version
 
 API_VERSION = "hololab.dev/v1"
 
@@ -202,7 +210,6 @@ class OutputPreview(BaseModel):
         if self.entry is None:
             value.pop("entry", None)
         return value
-
 
 
 class OutputSpec(BaseModel):
@@ -518,19 +525,29 @@ class RuntimeSpec(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class TypedEntry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    api: Literal[1]
+    type_packs: dict[str, TypeRef] = Field(default_factory=dict)
+    custom_codecs: bool = False  # entry exports a CODECS mapping keyed by port name
+    entry: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*\.py:[A-Za-z_][A-Za-z0-9_]*$")
+
+
 class ExecSpec(BaseModel):
     """The command template."""
 
     model_config = ConfigDict(extra="ignore")
 
+    typed: TypedEntry | None = None
     shell: str = ""
     python: str | None = None  # package-relative entrypoint, never an interpreter path
     args: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _check_command(self):
-        if bool(self.shell) == bool(self.python):
-            raise ValueError("exec requires exactly one of shell or python")
+        if sum(map(bool, (self.shell, self.python, self.typed))) != 1:
+            raise ValueError("exec requires exactly one of shell, python or typed")
         if self.args and not self.python:
             raise ValueError("exec.args requires python")
         return self
@@ -757,6 +774,23 @@ class Manifest(BaseModel):
     hide_default_output_previews: bool = False
     previews: list[PreviewSpec] = Field(default_factory=list)
     progress: ProgressSpec | None = None
+
+    @model_validator(mode="after")
+    def _check_type_packs(self):
+        typed = self.exec.typed
+        if typed is None:
+            return self
+        versions = {}
+        for port, ref in typed.type_packs.items():
+            spec = self.inputs.get(port) or self.outputs.get(port)
+            if (
+                spec is None
+                or port in self.inputs.keys() & self.outputs.keys()
+                or getattr(spec, "any_of", ())
+            ):
+                raise ValueError(f"Type Pack requires a declared non-union port: {port}")
+            check_type_version(versions, ref)
+        return self
 
     @model_validator(mode="after")
     def _check_host_exec(self):

@@ -36,6 +36,8 @@ Available bindings (see docs/pack-spec.md#exec):
 
 from __future__ import annotations
 
+import json
+import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -151,7 +153,17 @@ def render_manifest(manifest: Manifest, ctx: RenderContext) -> RenderedManifest:
         if spec.type.value == "path" and spec.optional:
             bindings["params"].setdefault(name, "" if spec.default == "" else None)
 
-    shell = _render_str(manifest.exec.shell, bindings, where="exec.shell")
+    if manifest.exec.typed:
+        worker = Path(__file__).resolve().parents[1] / "typed_worker.py"
+        source = Path(bindings["manifest_dir"]) / "manifest.yaml"
+        request = dict(
+            inputs=ctx.inputs, outputs=ctx.outputs, params=ctx.params, scratch=ctx.scratch_dir
+        )
+        # One JSON line, read from stdin in the algorithm environment.
+        command = shlex.join(["python", "-B", str(worker), str(source)])
+        shell = f"{command} <<'HOLOLAB_TYPED'\n{json.dumps(request)}\nHOLOLAB_TYPED"
+    else:
+        shell = _render_str(manifest.exec.shell, bindings, where="exec.shell")
     working_dir = (
         _render_str(manifest.exec.working_dir, bindings, where="exec.working_dir")
         if manifest.exec.working_dir

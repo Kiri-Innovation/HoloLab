@@ -6,7 +6,6 @@ Cold contents are read only when publishing a baseline, never during verificatio
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import os
@@ -21,6 +20,8 @@ from typing import Any
 
 import yaml
 from pathspec import GitIgnoreSpec
+
+from hololab.file_lock import lock_exclusive
 
 FORMAT = 2
 # Only these TOP-LEVEL publishing fields are excluded. Unknown fields stay hashed.
@@ -167,7 +168,7 @@ class Scope:
     package_ignore_bytes: bytes | None = None
 
     @classmethod
-    def load(cls, path: Path) -> Scope:
+    def load(cls, path: Path, *, type_pack: bool = False) -> Scope:
         from hololab.manifest.schema import load_manifest
 
         # Entries are enumerated below the resolved root.  Canonicalise the
@@ -176,7 +177,14 @@ class Scope:
         # hot_entries() and turns it into ordinary hot content.
         path = path.absolute()
         path = path.parent.resolve() / path.name
-        manifest, _ = load_manifest(path)
+        if type_pack:
+            import yaml
+
+            from hololab.type_pack import TypeManifest
+
+            manifest = TypeManifest.model_validate(yaml.safe_load(path.read_bytes()))
+        else:
+            manifest, _ = load_manifest(path)
         root = resolve_root(path, manifest.root)
         ignore = root / ".packignore"
         gitignore = root / ".gitignore"
@@ -188,7 +196,7 @@ class Scope:
         return cls(
             path,
             root,
-            tuple(Path(p).as_posix() for p in manifest.cold),
+            tuple(Path(p).as_posix() for p in getattr(manifest, "cold", ())),
             path.read_bytes(),
             ignore.read_bytes() if ignore.exists() else None,
             gitignore.read_bytes() if gitignore.is_file() else None,
@@ -245,7 +253,7 @@ class Scope:
         # repository's .gitignore excludes its directory or ``*.sh`` files.
         # It must participate in identity and export: an installed archive
         # cannot safely run a hook that was not shipped with it.
-        setup_script = self.manifest.setup.script if self.manifest.setup else None
+        setup_script = self.manifest.setup.script if getattr(self.manifest, "setup", None) else None
         protected = {".packignore"}
         if self.package_ignore_relative is not None:
             protected.add(self.package_ignore_relative)
@@ -410,6 +418,14 @@ def display_tree(entries: list[Entry], *, top_limit: int = 12, child_limit: int 
 def provenance(scope: Scope) -> dict:
     root = scope.root
     status = git(root, "status", "--porcelain", "--untracked-files=all")
+    if scope.manifest.kind == "Type":
+        return {
+            "git": {},
+            "uncovered": [],
+            "undeclared": [],
+            "dependency_discovery_complete": False,
+            "quality_hints": [],
+        }
     source = scope.manifest.source_entry
     uncovered = list(scope.manifest.external_code)
     if source and Path(source).is_absolute() and not Path(source).is_relative_to(root):
@@ -474,7 +490,7 @@ class Baselines:
         self.directory.mkdir(parents=True, exist_ok=True)
         destination = self.directory / (key + ".json")
         with (self.directory / (key + ".lock")).open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            lock_exclusive(lock)
             if destination.exists() and not refresh:
                 return json.loads(destination.read_text())
             previous = json.loads(destination.read_text()) if destination.exists() else None
@@ -529,7 +545,7 @@ class DigestCache:
         lock_path = destination.with_suffix(".lock")
         controls = scope.controls
         with lock_path.open("a") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+            lock_exclusive(lock)
             try:
                 cached = json.loads(destination.read_text()) if destination.exists() else {}
             except (OSError, ValueError, TypeError):
@@ -563,8 +579,10 @@ class DigestCache:
             return result
 
 
-def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> dict:
-    scope = Scope.load(path)
+def capture(
+    path: Path, baselines: Baselines, *, refresh_cold: bool = False, type_pack: bool = False
+) -> dict:
+    scope = Scope.load(path, type_pack=type_pack)
     entries = list(scope.entries())
     # Baselines live under node data by default, so this sibling also stays
     # outside pack source trees.  Callers with a temporary Baselines instance
@@ -629,7 +647,7 @@ def capture(path: Path, baselines: Baselines, *, refresh_cold: bool = False) -> 
         [FORMAT, record["hot"]["sha256"], record["manifest"]["sha256"], cold["sha256"]]
     )
     # Control files changing during enumeration cannot seal a submission.
-    verify(path, record)
+    verify(path, record, type_pack=type_pack)
     return record
 
 
@@ -681,9 +699,9 @@ def check_controls(path: Path, record: dict) -> None:
         mismatch(record, ".gitignore", expected.get("gitignore_sha256"), actual_gitignore)
 
 
-def verify(path: Path, record: dict) -> None:
+def verify(path: Path, record: dict, *, type_pack: bool = False) -> None:
     check_controls(path, record)
-    scope = Scope.load(path)
+    scope = Scope.load(path, type_pack=type_pack)
     entries = list(scope.entries(hot_only=True))
     actual = tree_digest(entries if record["format"] == 1 else hot_entries(scope, entries))
     if actual != record["hot"]["sha256"]:

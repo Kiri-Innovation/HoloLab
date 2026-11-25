@@ -139,3 +139,76 @@ file:// 与本机 HTTP 安装，以及恶意归档路径拒绝。
 日志位于本机 `/tmp/hololab-registry-full-final.log`、`/tmp/hololab-registry-e2e-final.log`、
 `/tmp/hololab-registry-ui.log`、`/tmp/hololab-registry-build.log`。未连接公网注册服务，
 未重启现有服务；真实运行验证在临时工作区中直接调用节点执行流程。
+
+## Versioned Type Packs
+
+A Type Pack has a global `name` (the registry's `typename`). Use a
+three-part release `version` and a Python module/class in `codec`.
+This module is a single `.py` file next to the manifest. Use a distinctive
+module name. The class implements `hololab.typed_values.HType`.
+
+```yaml
+apiVersion: hololab.dev/v1
+kind: Type
+name: example-points
+version: 0.1.0
+codec: example_points_codec:Points
+dependencies: [example-cameras@0.1.0]
+```
+
+Omit `dependencies` when the codec is self-contained. Codec modules may
+import the canonical modules of their declared Type Pack dependencies.
+Type Packs can include preview and summary assets. The installed dependency
+lock is used by the worker. The existing gateway preview registry continues
+to discover configured source definitions and built-in previews.
+
+Use `--publisher-scope` to select a Type Pack's authorized release scope.
+The first successful release establishes the global name's owner. Leave
+`--publish-to` out to publish only to a writable local registry directory.
+
+```bash
+hololab pack publish ./example-points \
+  --source file:///absolute/path/to/staging-registry \
+  --publisher example --publisher-scope example \
+  --publish-to https://registry.example --token-env PUBLISHER_TOKEN
+```
+
+The HTTP client posts multipart `metadata` and `archive` to
+`/types/publish`. It reads `GET /types/<typename>/` and selects the exact
+`typename@version` release from the response. The archive path is relative
+to the registry root. Read requests use the same source as the algorithm.
+A static file authority uses `types/<typename>/index.json`.
+
+In an algorithm manifest, bind the exact release to each relevant typed
+port. The port name must be unambiguous and non-union.
+
+```yaml
+exec:
+  typed:
+    api: 1
+    entry: main.py:run
+    type_packs:
+      points: example-points@0.1.0
+```
+
+Import `Points` from `example_points_codec` in the entry. The typed worker
+uses the same module and class for port reads, validation, and writes in the
+algorithm's Python environment. Existing built-in codecs and
+`custom_codecs` still apply to other ports. Declare third-party Python
+dependencies in the algorithm's runtime requirements.
+
+`hololab pack install SCOPE/ALGORITHM@VERSION --source REGISTRY` resolves
+and verifies all declared Type dependencies. The installation keeps
+`.hololab-types.json` beside its algorithm receipt and extracts its pinned
+Type payloads under `.types/` in the same installation directory. The lock
+records the source, port bindings, exact releases, ownership and digests.
+A failed dependency install leaves the algorithm undiscoverable. Reinstall
+of a valid local copy uses its existing lock. Separate algorithm
+installations own their dependency copies, even when they resolve the same
+global Type version. This client has no pack uninstall command.
+
+On Windows, use the same HTTPS install command in PowerShell. For example,
+`hololab pack install col4d/colmap4d-split@0.2.0 --source https://packs.xenotech.studio/`.
+The CLI uses a native exclusive file lock for concurrent installs and writes
+the receipts using an atomic replacement. Execution still needs the
+algorithm's configured interpreter and Python dependencies.
