@@ -1,12 +1,11 @@
 # Turn an algorithm into a HoloLab Pack
 
-Open with the two goals in this order: “First we'll decide how to split and
-package the algorithm, then try it on a small canvas. After that we'll look
-at why to publish and how someone can install and use the same version.”
-Start with the first goal. Explain release mechanics when the prototype is
-ready to review. Plan for release, but get explicit authorization before
-publishing. Open [the release guide](pack-to-release.md) when the prototype
-is ready for handoff or the user asks to work on release preparation.
+For a concrete packaging task, orient the user with the
+[task roadmap](#guide-the-conversation-and-show-progress) before implementation.
+Start with design and a small canvas prototype. Explain release mechanics when
+the prototype is ready to review. Treat publication as optional until the user
+authorizes it, and open [the release guide](pack-to-release.md) when the work
+reaches release preparation.
 
 Assume the user knows their algorithm and may be new to how HoloLab models
 work. Start with what the user has already provided. Consult the relevant
@@ -37,14 +36,19 @@ implementation steps should be straightforward.
 
 ### Guide the conversation and show progress
 
-Show the route at the start, then update at each transition and whenever
-waiting or blocked. Prefer a harness progress card when available, or one
-line of text. Plan for **Design → Adapt → Prototype →
-[Prepare release → Rebuild → Publish → Handoff](pack-to-release.md#prepare-the-smallest-distributable-archive)**
-by default. Mark the current stage as in progress, completed, or
-blocked, and name the next action. For example, “Stage 3/7 · Prototype in
-progress · next: run the short video.” Use percentages only for a measured
-quantity or an explicitly labeled fraction of completed stages.
+As the primary agent, send the user one line with the route for this task,
+the current stage, and the next action. Do this before delegating
+implementation, editing files, or changing the canvas. You may first
+investigate read-only. Tell the user you are in Design and what you are
+checking. Send the roadmap yourself in a user-visible message or progress
+card. Internal plans and sub-agent output do not count.
+
+For example, “Design → Adapt → Canvas smoke test → Release (optional) ·
+Now: Design · Next: check what the downstream node reads.” Include only
+stages relevant to the current scope. At each stage change or blocker and
+before starting a long run, give the current stage, one piece of evidence or
+the blocker, and the next action. Use plain stage labels unless a percentage
+has a real measurement. Continue routine work within the user's authorization.
 
 Resume from the latest evidence. Confirm what was completed, what changed,
 and the next pending action. Repeat checks affected by a change and reuse
@@ -264,13 +268,24 @@ producer and consumer. For example:
   tracks or quietly change the inference step.
 
 When outputs can be consumed independently, give them separate typed ports.
-When a consumer needs one object with relationships that must hold across its
-parts, first look for an existing composite type. Propose a new logical type
-only when existing types, composition, and conversion cannot express the
-required semantics. Explain what they cannot represent, which object invariants
-must survive the disk write/read round trip, how to validate that round trip,
-and which actual consumer will read it. If the design uses a versioned Type Pack,
-follow the [Type Pack contract](../../docs/pack-registry.md#versioned-type-packs)
+Before fixing the ports or delegating implementation, give the user a short
+type recommendation yourself. Base it on existing types and the actual
+producer and consumer. Recommend a specific existing type when it fits. Say
+which facts remain unverified and what you will check before committing to the
+design.
+
+When existing types, composition, and conversion cannot preserve semantics
+that cross a node boundary and have independent consumers or reuse across
+Packs, recommend a named Type Pack. Explain what the closest existing type
+loses, who writes and reads the new type, and the minimum disk layout and
+invariants the codec must preserve on round trip. For example, “Reuse
+`image[frame]` for ordered pixels. For the alignment results shared with
+another Pack, I recommend a Type Pack that stores one record per frame with
+its stable image ID and coordinate system. A pixel array cannot carry those
+relationships.” Keep intermediate state that only the Pack uses private.
+Give a recommendation in plain language rather than asking the user to pick
+a type. Defining a type and authorizing its publication are separate decisions.
+Follow the [Type Pack contract](../../docs/pack-registry.md#versioned-type-packs)
 for the codec and exact typed-port binding.
 
 ### Decide what people need to see on the canvas
