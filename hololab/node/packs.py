@@ -79,8 +79,11 @@ class LoadedPack:
                 "manifest_path": str(pack.manifest_path.resolve()),
                 "root_abs": str(pack.package_root.resolve()),
                 "source_dir": str(pack.source_dir.resolve()),
-                "source_type": "community_install" if pack.publication else
-                    "bundled" if pack.bundled_identity else "source_scan",
+                "source_type": "community_install"
+                if pack.publication
+                else "bundled"
+                if pack.bundled_identity
+                else "source_scan",
                 "effective": index == 0,
                 "manifest_hash": pack.manifest_hash,
                 "code_sha256": content.get("sha256") if index == 0 and content else None,
@@ -231,7 +234,10 @@ def scan_packs(pack_source: Path) -> list[LoadedPack]:
     # Mode 3 — directory of pack subdirectories (legacy repo layout).
     out: list[LoadedPack] = []
     for entry in sorted(pack_source.iterdir()):
-        if entry.name in {"output", "outputs", "data", "assets", ".git", "types"} or not entry.is_dir():
+        if (
+            entry.name in {"output", "outputs", "data", "assets", ".git", "types"}
+            or not entry.is_dir()
+        ):
             continue
         manifest_path = manifest_at(entry)
         if not manifest_path.is_file():

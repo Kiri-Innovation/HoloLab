@@ -66,9 +66,7 @@ def _arg(argv: list[str], name: str) -> str | None:
 
 def _is_fileserver(argv: list[str] | None, port: int) -> bool:
     return bool(
-        argv
-        and "hololab.node.fileserver_main" in argv
-        and _arg(argv, "--port") == str(port)
+        argv and "hololab.node.fileserver_main" in argv and _arg(argv, "--port") == str(port)
     )
 
 
@@ -209,4 +207,6 @@ def assert_port_available(*, host: str, port: int) -> None:
 def stop_owned_file_server(*, port: int, workspace_root: Path, pidfile: Path) -> bool:
     """Official stop path; returns whether a known server was stopped."""
 
-    return reclaim_file_server(port=port, workspace_root=workspace_root, pidfile=pidfile) is not None
+    return (
+        reclaim_file_server(port=port, workspace_root=workspace_root, pidfile=pidfile) is not None
+    )

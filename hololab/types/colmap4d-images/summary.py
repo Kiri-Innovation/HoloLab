@@ -1,4 +1,5 @@
 """Count sequence names without opening or decoding images."""
+
 import re
 from collections import Counter
 
@@ -16,8 +17,12 @@ def summary(path, storage):
         if match and entry.is_file():
             frames.add(int(match[1]))
             counts[f"cam{int(match[2])}"] += 1
-    return {"kind": "colmap4d-images", "fields": {
-        "frame_count": len(frames), "camera_count": len(counts),
-        "images_per_camera": dict(sorted(counts.items())),
-        "image_count": sum(counts.values()),
-    }}
+    return {
+        "kind": "colmap4d-images",
+        "fields": {
+            "frame_count": len(frames),
+            "camera_count": len(counts),
+            "images_per_camera": dict(sorted(counts.items())),
+            "image_count": sum(counts.values()),
+        },
+    }
