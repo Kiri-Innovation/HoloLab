@@ -49,8 +49,12 @@ def _identity(pid: int) -> dict[str, Any] | None:
     ticks = _ticks(pid)
     if not argv or ticks is None:
         return None
-    return {"pid": pid, "start_ticks": ticks, "argv_sha256": hashlib.sha256(
-        "\0".join(argv).encode()).hexdigest(), "argv": argv}
+    return {
+        "pid": pid,
+        "start_ticks": ticks,
+        "argv_sha256": hashlib.sha256("\0".join(argv).encode()).hexdigest(),
+        "argv": argv,
+    }
 
 
 def _matches(identity: Any) -> bool:
@@ -58,8 +62,12 @@ def _matches(identity: Any) -> bool:
         return False
     pid = identity["pid"]
     current = _identity(pid)
-    return bool(current and _alive(pid) and current["start_ticks"] == identity.get("start_ticks")
-                and current["argv_sha256"] == identity.get("argv_sha256"))
+    return bool(
+        current
+        and _alive(pid)
+        and current["start_ticks"] == identity.get("start_ticks")
+        and current["argv_sha256"] == identity.get("argv_sha256")
+    )
 
 
 def _read(path: Path | None = None) -> dict[str, Any] | None:
@@ -125,8 +133,16 @@ def begin_service(*, gateway_port: int, file_server_port: int) -> None:
     parent = _identity(os.getpid())
     if parent is None:  # pragma: no cover - Linux /proc is required in production
         raise RuntimeError("cannot establish HoloLab process identity")
-    _write({"version": 1, "started_at": time.time(), "gateway_port": gateway_port,
-            "file_server_port": file_server_port, "parent": parent, "children": []})
+    _write(
+        {
+            "version": 1,
+            "started_at": time.time(),
+            "gateway_port": gateway_port,
+            "file_server_port": file_server_port,
+            "parent": parent,
+            "children": [],
+        }
+    )
 
 
 def register_child(pid: int) -> None:
@@ -137,8 +153,9 @@ def register_child(pid: int) -> None:
     identity = _identity(pid)
     if identity is None:
         return
-    record["children"] = [child for child in record.get("children", [])
-                          if child.get("pid") != pid] + [identity]
+    record["children"] = [
+        child for child in record.get("children", []) if child.get("pid") != pid
+    ] + [identity]
     _write(record)
 
 
@@ -146,8 +163,7 @@ def unregister_child(pid: int) -> None:
     record = _read()
     if not record or record.get("parent", {}).get("pid") != os.getpid():
         return
-    record["children"] = [child for child in record.get("children", [])
-                          if child.get("pid") != pid]
+    record["children"] = [child for child in record.get("children", []) if child.get("pid") != pid]
     _write(record)
 
 
@@ -169,8 +185,7 @@ def stop_service() -> tuple[list[int], list[int]]:
     if _matches(parent):
         if _terminate(parent):
             stopped.append(parent["pid"])
-    elif (isinstance(parent, dict) and isinstance(parent.get("pid"), int)
-          and _alive(parent["pid"])):
+    elif isinstance(parent, dict) and isinstance(parent.get("pid"), int) and _alive(parent["pid"]):
         skipped.append(parent["pid"])
     for child in record.get("children", []):
         if _matches(child):

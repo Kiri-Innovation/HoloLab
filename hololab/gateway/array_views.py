@@ -3,12 +3,14 @@
 The original graph and handles are never mutated. The result uses the existing
 port IR and normal execution/handle registration. No per-operation hooks exist.
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
-from hololab.manifest.array_views import resolve_capabilities
+
 from hololab.gateway.port_type_ir import ArrayType, ObjectType, compatible, from_legacy
+from hololab.manifest.array_views import resolve_capabilities
 from hololab.package_identity import package_key
 from hololab.type_registry import type_read_batch
 
@@ -21,21 +23,25 @@ def compile_array_views(graph, catalog, *, issues=None):
     Execution callers omit ``issues`` and still fail closed.
     """
     from hololab.gateway.workflows import (
-        GraphNode, GraphEdge, packs_by_key_from_catalog, resolved_port_types,
+        GraphEdge,
+        GraphNode,
         execution_topological_order,
+        packs_by_key_from_catalog,
+        resolved_port_types,
     )
+
     result = graph.model_copy(deep=True)
-    offers = resolve_capabilities([
-        (f"{p['name']}@{p['version']}", p.get("type_capabilities", {})) for p in catalog
-    ])
+    offers = resolve_capabilities(
+        [(f"{p['name']}@{p['version']}", p.get("type_capabilities", {})) for p in catalog]
+    )
     packs = packs_by_key_from_catalog(catalog)
-    catalog_by_key = {package_key(p['name'], p['version']): p for p in catalog}
+    catalog_by_key = {package_key(p["name"], p["version"]): p for p in catalog}
     plans = []
     lineage = {}
     nodes = {n.id: n for n in result.nodes}
 
     def match(a, b):
-        return 'any' in a or 'any' in b or bool(set(a) & set(b))
+        return "any" in a or "any" in b or bool(set(a) & set(b))
 
     def fits(a, b, labels=True):
         return compatible(a, b, match, require_axis_label_match=labels)
@@ -51,36 +57,54 @@ def compile_array_views(graph, catalog, *, issues=None):
         provider = catalog_by_key.get(package_key(hook.name, hook.version))
         if provider is None:
             raise ValueError(f"array view provider unavailable: {hook.name}@{hook.version}")
-        inp = provider.get('inputs', {}).get(hook.input)
-        out = provider.get('outputs', {}).get(hook.output)
+        inp = provider.get("inputs", {}).get(hook.input)
+        out = provider.get("outputs", {}).get(hook.output)
         if inp is None or out is None:
-            raise ValueError('array view provider port unavailable')
+            raise ValueError("array view provider port unavailable")
         obj = ObjectType(tags=[tag])
         arr = from_legacy(view.array.tags, True, view.array.dim_labels)
-        expected_in, expected_out = (obj, arr) if direction == 'to_array' else (arr, obj)
+        expected_in, expected_out = (obj, arr) if direction == "to_array" else (arr, obj)
         for actual, expected in ((inp, expected_in), (out, expected_out)):
-            actual_type = from_legacy(actual['tags'], actual.get('arrayed', False), actual.get('dim_labels', []))
+            actual_type = from_legacy(
+                actual["tags"], actual.get("arrayed", False), actual.get("dim_labels", [])
+            )
             if not (fits(actual_type, expected) and fits(expected, actual_type)):
-                raise ValueError('array view provider signature does not match declaration')
-        if any(k != hook.input and v.get('required', True) for k, v in provider['inputs'].items()):
-            raise ValueError('array view provider has additional required inputs')
-        plan = dict(edge_id=edge.id, owner=owner, tag=tag, view=name,
-                    definition=view.model_dump(mode='json'), direction=direction,
-                    provider=hook.model_dump(mode='json'))
+                raise ValueError("array view provider signature does not match declaration")
+        if any(k != hook.input and v.get("required", True) for k, v in provider["inputs"].items()):
+            raise ValueError("array view provider has additional required inputs")
+        plan = dict(
+            edge_id=edge.id,
+            owner=owner,
+            tag=tag,
+            view=name,
+            definition=view.model_dump(mode="json"),
+            direction=direction,
+            provider=hook.model_dump(mode="json"),
+        )
         digest = hashlib.sha256(json.dumps(plan, sort_keys=True).encode()).hexdigest()[:20]
-        node_id = 'array-view-' + digest
+        node_id = "array-view-" + digest
         if node_id in nodes:
-            raise ValueError('array view generated node ID collision')
+            raise ValueError("array view generated node ID collision")
         target = nodes[edge.target]
-        new = GraphNode(id=node_id, algorithm_name=hook.name, algorithm_version=hook.version,
-                        device=target.device, assigned_node_id=target.assigned_node_id)
+        new = GraphNode(
+            id=node_id,
+            algorithm_name=hook.name,
+            algorithm_version=hook.version,
+            device=target.device,
+            assigned_node_id=target.assigned_node_id,
+        )
         result.nodes.append(new)
         nodes[node_id] = new
-        replacement = GraphEdge(id=edge.id + '-array-view-input', source=edge.source,
-                                sourceHandle=edge.sourceHandle, target=node_id, targetHandle=hook.input)
+        replacement = GraphEdge(
+            id=edge.id + "-array-view-input",
+            source=edge.source,
+            sourceHandle=edge.sourceHandle,
+            target=node_id,
+            targetHandle=hook.input,
+        )
         edge.source, edge.sourceHandle = node_id, hook.output
         result.edges.append(replacement)
-        plan['node_id'] = node_id
+        plan["node_id"] = node_id
         plans.append(plan)
         return node_id, hook.output
 
@@ -95,7 +119,11 @@ def compile_array_views(graph, catalog, *, issues=None):
         for edge in incoming:
             source = nodes[edge.source]
             source_types = port_types(source)
-            if source_types is None or edge.sourceHandle not in source_types.outputs or edge.targetHandle not in typ.inputs:
+            if (
+                source_types is None
+                or edge.sourceHandle not in source_types.outputs
+                or edge.targetHandle not in typ.inputs
+            ):
                 continue
             src = source_types.outputs[edge.sourceHandle].views.aggregate
             dst = typ.inputs[edge.targetHandle].views.aggregate
@@ -104,26 +132,41 @@ def compile_array_views(graph, catalog, *, issues=None):
                 continue
             try:
                 if isinstance(src, ObjectType) and isinstance(dst, ArrayType):
-                    candidates = [(owner, tag, name, view) for (tag, name), (owner, view) in offers.items()
-                                  if tag in src.tags and fits(from_legacy(view.array.tags, True, view.array.dim_labels), dst, labels)]
+                    candidates = [
+                        (owner, tag, name, view)
+                        for (tag, name), (owner, view) in offers.items()
+                        if tag in src.tags
+                        and fits(
+                            from_legacy(view.array.tags, True, view.array.dim_labels), dst, labels
+                        )
+                    ]
                     if len(candidates) != 1:
-                        raise ValueError(f'edge {edge.id}: array view selection requires one candidate, got {len(candidates)}')
+                        raise ValueError(
+                            f"edge {edge.id}: array view selection requires one candidate, got {len(candidates)}"
+                        )
                     owner, tag, name, view = candidates[0]
-                    key = insert(edge, owner, tag, name, view, 'to_array')
+                    key = insert(edge, owner, tag, name, view, "to_array")
                     lineage[key] = candidates[0]
                 elif isinstance(src, ArrayType) and isinstance(dst, ObjectType):
                     origin = lineage.get((edge.source, edge.sourceHandle))
                     if origin is None:
-                        raise ValueError(f'edge {edge.id}: cannot restore array without view provenance')
+                        raise ValueError(
+                            f"edge {edge.id}: cannot restore array without view provenance"
+                        )
                     owner, tag, name, view = origin
                     if not fits(ObjectType(tags=[tag]), dst):
-                        raise ValueError(f'edge {edge.id}: restoration target differs from original type')
-                    insert(edge, owner, tag, name, view, 'from_array')
+                        raise ValueError(
+                            f"edge {edge.id}: restoration target differs from original type"
+                        )
+                    insert(edge, owner, tag, name, view, "from_array")
             except ValueError as exc:
                 if issues is None:
                     raise
-                issues.append(dict(kind='invalid_edge', edge_id=edge.id,
-                                   node_id=edge.target, message=str(exc)))
+                issues.append(
+                    dict(
+                        kind="invalid_edge", edge_id=edge.id, node_id=edge.target, message=str(exc)
+                    )
+                )
         # Only declared generic passthrough outputs propagate a view. Arbitrary
         # algorithm results of the same tag do not acquire trustworthy provenance.
         typ = port_types(node)
@@ -131,17 +174,24 @@ def compile_array_views(graph, catalog, *, issues=None):
         for output, spec in pack.outputs.items():
             if not spec.tags_from:
                 if pack.arrayable and node.arrayed_toggle:
-                    origins = [lineage[(e.source, e.sourceHandle)] for e in incoming
-                               if (e.source, e.sourceHandle) in lineage]
+                    origins = [
+                        lineage[(e.source, e.sourceHandle)]
+                        for e in incoming
+                        if (e.source, e.sourceHandle) in lineage
+                    ]
                     if origins and all(origin == origins[0] for origin in origins):
                         origin = origins[0]
-                        expected = from_legacy(origin[3].array.tags, True, origin[3].array.dim_labels)
+                        expected = from_legacy(
+                            origin[3].array.tags, True, origin[3].array.dim_labels
+                        )
                         if fits(typ.outputs[output].views.aggregate, expected, False):
                             # Eligibility only: the restoring provider still checks
                             # every element's persisted provenance and contents.
                             lineage[node_id, output] = origin
                 continue
-            incoming_edges = [e for e in result.edges if e.target == node_id and e.targetHandle == spec.tags_from]
+            incoming_edges = [
+                e for e in result.edges if e.target == node_id and e.targetHandle == spec.tags_from
+            ]
             if len(incoming_edges) != 1:
                 continue
             origin = lineage.get((incoming_edges[0].source, incoming_edges[0].sourceHandle))
@@ -154,15 +204,21 @@ def compile_array_views(graph, catalog, *, issues=None):
         if any(e.source == source_id and e.sourceHandle == source_port for e in result.edges):
             continue
         owner, tag, name, view = origin
-        sentinel = GraphEdge(id=f"terminal-{source_id}-{source_port}", source=source_id,
-                             sourceHandle=source_port, target=source_id, targetHandle=source_port)
+        sentinel = GraphEdge(
+            id=f"terminal-{source_id}-{source_port}",
+            source=source_id,
+            sourceHandle=source_port,
+            target=source_id,
+            targetHandle=source_port,
+        )
         try:
-            insert(sentinel, owner, tag, name, view, 'from_array')
+            insert(sentinel, owner, tag, name, view, "from_array")
         except ValueError as exc:
             if issues is None:
                 raise
-            issues.append(dict(kind='invalid_edge', edge_id=sentinel.id,
-                               node_id=source_id, message=str(exc)))
+            issues.append(
+                dict(kind="invalid_edge", edge_id=sentinel.id, node_id=source_id, message=str(exc))
+            )
     if plans:
         result.execution = {**(result.execution or {}), "array_views": plans}
     return result, plans

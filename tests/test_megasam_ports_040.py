@@ -9,7 +9,7 @@ from hololab.manifest import load_manifest
 from hololab.manifest.schema import InputSpec
 from hololab.gateway.port_type_ir import UnionType,compatible,from_legacy
 from hololab.gateway.workflows import tags_compatible
-from test_megasam_components_040 import mega
+from .test_megasam_components_040 import mega
 
 ROOT=Path(__file__).parents[1]
 class PortsAndFrames(unittest.TestCase):

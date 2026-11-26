@@ -3,9 +3,11 @@
 Declarations describe executable providers, not changes to a source handle's
 shape. Resolution is deterministic and fails closed on competing definitions.
 """
+
 from __future__ import annotations
 
 from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -98,7 +100,16 @@ def resolve_capabilities(definitions):
 def reject_port_capabilities(value):
     """Ports are not type owners; never silently swallow misplaced hooks."""
     if isinstance(value, dict):
-        bad = {"array_views", "array_view", "type_capabilities", "to_array", "from_array", "array_ops"} & value.keys()
+        bad = {
+            "array_views",
+            "array_view",
+            "type_capabilities",
+            "to_array",
+            "from_array",
+            "array_ops",
+        } & value.keys()
         if bad:
-            raise ValueError(f"type capabilities belong at manifest.type_capabilities, not ports: {sorted(bad)}")
+            raise ValueError(
+                f"type capabilities belong at manifest.type_capabilities, not ports: {sorted(bad)}"
+            )
     return value

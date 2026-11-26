@@ -1,0 +1,6 @@
+apiVersion: hololab.dev/v1
+kind: Type
+name: depth_map
+version: 0.1.0
+codec: depth_map_codec:DepthCodec
+element: file

@@ -1,8 +1,9 @@
 """Read only the unsigned little-endian count headers; never scan records."""
+
 from pathlib import Path
 
-KIND = 'colmap4d-point-cloud'
-FILES = (('point', 'points3D.bin'),)
+KIND = "colmap4d-point-cloud"
+FILES = (("point", "points3D.bin"),)
 
 
 def summary(path, storage):
@@ -19,6 +20,11 @@ def summary(path, storage):
             items.append({"label": label, "value": int.from_bytes(header, "little")})
     if not items:
         return None
-    return {"kind": KIND, "counts": {
-        "kind": KIND, "count": items[0]["value"], "items": items,
-    }}
+    return {
+        "kind": KIND,
+        "counts": {
+            "kind": KIND,
+            "count": items[0]["value"],
+            "items": items,
+        },
+    }

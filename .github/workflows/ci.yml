@@ -40,7 +40,7 @@ jobs:
         run: |
           mkdir -p hololab/frontend/dist
           python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          pip install -e ".[dev,preview-colmap4d]" "OpenEXR>=3.3"
 
       - name: Ruff (lint)
         working-directory: hololab
@@ -73,5 +73,5 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: python -m pip install pytest
+      - run: python -m pip install -e . pytest
       - run: pytest -q tests/test_colmap_cams_preview_bundle.py --confcutdir=tests

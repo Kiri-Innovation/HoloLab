@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
-import sys
 from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).parents[2]
-sys.path.insert(0, str(REPO_ROOT / "packages" / "colmap4d" / "src"))
-PACK = REPO_ROOT / "hololab" / "community_packs" / "merge-colmap4d@0.1.5" / "merge_colmap4d.py"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PACK = REPO_ROOT / "community_packs" / "merge-colmap4d@0.1.5" / "merge_colmap4d.py"
 SPEC = importlib.util.spec_from_file_location("merge_colmap4d_015", PACK)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
