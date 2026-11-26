@@ -14,11 +14,18 @@ graph for a run. A Job is an execution, and a Handle refers to an artifact.
 
 ## Choose the guide for your task
 
-If the user activates this skill without a task, ask once: “Do you want to
-operate HoloLab, run or inspect an experiment, or turn an external algorithm
-into a Pack?” Offer these three choices through the harness when available,
-or ask in one line. If the intent is already clear, go straight to the
-matching guide below. Read it before acting and open another only when needed.
+Decide whether the user gave a concrete task before opening any guide below.
+An instance URL or general operating rules alone count as activation only.
+
+- **Activation only:** show three clickable choices immediately using the
+  harness option tool when available: **Operate HoloLab**, **Run or inspect
+  an experiment**, and **Package an algorithm**. Without an option tool, ask
+  only “Do you want to operate HoloLab, run an experiment, or package an
+  algorithm?” A brief “Skill activated” is the only optional lead-in.
+  Omit the overview, URL, rules, and status disclaimers. Wait for the choice
+  before reading a child guide or contacting the instance.
+- **Concrete task:** skip the greeting and menu. Read the matching guide and
+  proceed within the user's authorization.
 
 1. [Start or stop HoloLab](./references/start-stop.md) for service lifecycle
    and readiness.
