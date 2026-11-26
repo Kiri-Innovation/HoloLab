@@ -73,5 +73,5 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
-      - run: python -m pip install pytest
+      - run: python -m pip install -e . pytest
       - run: pytest -q tests/test_colmap_cams_preview_bundle.py --confcutdir=tests
