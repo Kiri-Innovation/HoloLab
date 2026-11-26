@@ -75,7 +75,7 @@ np.savez(w/'megasam_run/original_resolution.npz',depths=np.ones((len(frames),hei
                 tracker_python=sys.executable,skip=2,max_frames=2,frames_fps=25)))
             self.assertEqual(read_times_bin(Path(frame_outputs['cams'])/'times.bin'),{1:0,2:80000000})
             # Both full adapter branches must compose into a strict complete model.
-            from test_colmap4d_components_020 import merge
+            from .test_colmap4d_components_020 import merge
             for label,bundle in [('video',outputs),('array',frame_outputs)]:
                 result=merge.assemble(bundle['cams'],bundle['points'],bundle['images'],root/(label+'-model'))
                 self.assertEqual(result['strict_problems'],0)
