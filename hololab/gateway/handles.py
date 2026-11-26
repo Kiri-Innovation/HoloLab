@@ -327,12 +327,14 @@ class HandleBook:
         if not snapshot_ids:
             return {}
         placeholders = ",".join("?" for _ in snapshot_ids)
-        async with self._db.read() as conn:
-            async with conn.execute(
+        async with (
+            self._db.read() as conn,
+            conn.execute(
                 f"SELECT DISTINCT workflow_id FROM snapshots WHERE snapshot_id IN ({placeholders})",
                 snapshot_ids,
-            ) as cur:
-                workflows = [row[0] for row in await cur.fetchall()]
+            ) as cur,
+        ):
+            workflows = [row[0] for row in await cur.fetchall()]
         if len(workflows) != 1:
             raise ValueError("snapshot artifact counts must belong to one workflow")
         index = await ArtifactIndex.load_for_workflow(self._db, workflows[0])
