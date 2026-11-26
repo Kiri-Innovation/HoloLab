@@ -6,6 +6,7 @@ shape. Resolution is deterministic and fails closed on competing definitions.
 from __future__ import annotations
 
 from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 

@@ -1,8 +1,11 @@
 """Durable, compact display facts for artifact handles."""
 from __future__ import annotations
-import asyncio, json, time
-from dataclasses import replace
+
+import asyncio
+import json
+import time
 from typing import Any
+
 from hololab.gateway.handle_summary import summarize_handle
 
 SCHEMA_VERSION = 1
@@ -32,7 +35,8 @@ async def persist(app: Any, handle: Any, dim_labels: list[str] | None) -> None:
     await app.state.db.write(write)
 
 async def batch(app: Any, handle_ids: list[str]) -> list[dict[str, Any]]:
-    if not handle_ids: return []
+    if not handle_ids:
+        return []
     from hololab.type_registry import registry
     registry.refresh()
     generation = registry.generation

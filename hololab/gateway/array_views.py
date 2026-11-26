@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import hashlib
 import json
-from hololab.manifest.array_views import resolve_capabilities
+
 from hololab.gateway.port_type_ir import ArrayType, ObjectType, compatible, from_legacy
+from hololab.manifest.array_views import resolve_capabilities
 from hololab.package_identity import package_key
 from hololab.type_registry import type_read_batch
 
@@ -21,8 +22,11 @@ def compile_array_views(graph, catalog, *, issues=None):
     Execution callers omit ``issues`` and still fail closed.
     """
     from hololab.gateway.workflows import (
-        GraphNode, GraphEdge, packs_by_key_from_catalog, resolved_port_types,
+        GraphEdge,
+        GraphNode,
         execution_topological_order,
+        packs_by_key_from_catalog,
+        resolved_port_types,
     )
     result = graph.model_copy(deep=True)
     offers = resolve_capabilities([
